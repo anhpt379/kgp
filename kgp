@@ -137,10 +137,10 @@ list_containers() {
     fi
 
     # Header
-    head -1 "$CONTAINERS_CACHE" | cut -f2-
+    head -1 "$CONTAINERS_CACHE" | awk '{print substr($0, index($0, $2))}'
 
     # Containers
-    grep "${pod_name}" "$CONTAINERS_CACHE" | cut -f2-
+    grep "${pod_name}" "$CONTAINERS_CACHE" | awk '{print substr($0, index($0, $2))}'
 }
 
 # ============================================================================
