@@ -315,7 +315,7 @@ def main():
     ]
 
     pod_output = tabulate(
-        pod_data, headers=pod_headers, tablefmt="plain", stralign="left"
+        pod_data, headers=pod_headers, tablefmt="plain", stralign="left", numalign="left"
     )
 
     with open(os.path.join(args.output_dir, "pods"), "w") as f:
@@ -332,7 +332,7 @@ def main():
     ]
 
     container_output = tabulate(
-        container_data, headers=container_headers, tablefmt="plain", stralign="left"
+        container_data, headers=container_headers, tablefmt="plain", stralign="left", numalign="left"
     )
 
     with open(os.path.join(args.output_dir, "containers"), "w") as f:
