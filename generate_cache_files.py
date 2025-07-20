@@ -143,26 +143,36 @@ def process_pods(data):
         spec = pod.get("spec", {})
         status = pod.get("status", {})
 
-        init_count = len(spec.get("initContainers", []))
+        # Only count regular containers, not init containers
         container_count = len(spec.get("containers", []))
-        total_containers = init_count + container_count
+        total_containers = container_count  # Don't add init containers
 
-        # Count ready containers
+        # Get pod phase and status
+        pod_phase = status.get("phase", "Unknown")
+        pod_status = get_pod_status(pod)
+
+        # Count ready containers - only regular containers
         ready_count = 0
-        for container in status.get("initContainerStatuses", []):
-            state = container.get("state", {})
-            if (
-                "terminated" in state
-                and state["terminated"].get("reason") == "Completed"
-            ):
-                ready_count += 1
 
-        for container in status.get("containerStatuses", []):
-            if container.get("ready", False):
-                ready_count += 1
+        if pod_phase == "Running":
+            # Only count ready containers for running pods
+            for container in status.get("containerStatuses", []):
+                if container.get("ready", False):
+                    ready_count += 1
+        elif pod_phase in ["Succeeded", "Failed"] or pod_status in [
+            "Completed",
+            "Error",
+        ]:
+            # For completed/failed pods, ready count is 0
+            ready_count = 0
+        else:
+            # For other phases (like Pending), count ready containers
+            for container in status.get("containerStatuses", []):
+                if container.get("ready", False):
+                    ready_count += 1
 
         ready_display = f"{ready_count}/{total_containers}"
-        pod_status = get_pod_status(pod)
+
         restarts = sum(
             c.get("restartCount", 0) for c in status.get("containerStatuses", [])
         )
@@ -315,7 +325,11 @@ def main():
     ]
 
     pod_output = tabulate(
-        pod_data, headers=pod_headers, tablefmt="plain", stralign="left", numalign="left"
+        pod_data,
+        headers=pod_headers,
+        tablefmt="plain",
+        stralign="left",
+        numalign="left",
     )
 
     with open(os.path.join(args.output_dir, "pods"), "w") as f:
@@ -332,7 +346,11 @@ def main():
     ]
 
     container_output = tabulate(
-        container_data, headers=container_headers, tablefmt="plain", stralign="left", numalign="left"
+        container_data,
+        headers=container_headers,
+        tablefmt="plain",
+        stralign="left",
+        numalign="left",
     )
 
     with open(os.path.join(args.output_dir, "containers"), "w") as f:
