@@ -87,35 +87,12 @@ fetch_data() {
     mv "$temp_file" "$RAW_DATA_CACHE"
 
     # Process the data into different views
-    generate_pod_list
-    generate_container_list
-}
-
-generate_pod_list() {
-    python3 process_pods.py "$RAW_DATA_CACHE" -o "$PODS_CACHE"
-}
-
-generate_container_list() {
-    python3 process_containers.py "$RAW_DATA_CACHE" -o "$CONTAINERS_CACHE"
-}
-
-get_pod_containers() {
-    local pod_name="$1"
-    grep "^${pod_name}[[:space:]]" "$CONTAINERS_CACHE" | cut -f2-
+    python3 generate_cache_files.py -i "$RAW_DATA_CACHE" -o "$CACHE_BASE"
 }
 
 # ============================================================================
 # Cache Management
 # ============================================================================
-init_cache_files() {
-    local cache_base="${CACHE_DIR}/${CONTEXT}/${NAMESPACE}"
-    mkdir -p "$cache_base"
-
-    PODS_CACHE="${cache_base}/pods.tsv"
-    CONTAINERS_CACHE="${cache_base}/containers.tsv"
-    RAW_DATA_CACHE="${cache_base}/raw_data.json"
-}
-
 refresh_cache() {
     fetch_data 2>/dev/null || echo "Failed to refresh cache" >&2
 }
@@ -123,7 +100,7 @@ refresh_cache() {
 background_refresh() {
     while true; do
         sleep "$CACHE_REFRESH_INTERVAL"
-        fetch_data 2>/dev/null || true
+        refresh_cache
     done
 }
 
@@ -140,158 +117,17 @@ stop_background_refresh() {
     fi
 }
 
-cleanup() {
-    stop_background_refresh
-}
-
-trap cleanup EXIT INT TERM
+trap stop_background_refresh EXIT INT TERM
 
 # ============================================================================
 # Display Functions
 # ============================================================================
-colorize_pod_line() {
-    local line="$1"
-
-    # Skip header line
-    if [[ "$line" =~ ^NAME ]]; then
-        echo "$line"
-        return
-    fi
-
-    local name=$(echo "$line" | awk '{print $1}')
-    local ready=$(echo "$line" | awk '{print $2}')
-    local status=$(echo "$line" | awk '{print $3}')
-    local restarts=$(echo "$line" | awk '{print $4}')
-    local age=$(echo "$line" | awk '{print $5}')
-
-    # Extract ready and total counts
-    local ready_count=0
-    local total_count=0
-    if [[ "$ready" =~ ^([0-9]+)/([0-9]+)$ ]]; then
-        ready_count="${BASH_REMATCH[1]}"
-        total_count="${BASH_REMATCH[2]}"
-    fi
-
-    case "$status" in
-    *Error* | *Failed* | *CrashLoopBackOff*)
-        printf "$(colorize RED "%-60s %-10s %-15s") " "$name" "$ready" "$status"
-        if [[ "$restarts" -gt 0 ]]; then
-            printf "$(colorize YELLOW "%-10s") " "$restarts"
-        else
-            printf "%-10s " "$restarts"
-        fi
-        printf "%s\n" "$age"
-        ;;
-    *Completed* | *Terminated* | *Succeeded*)
-        colorize GRAY "$line"
-        ;;
-    *Pending*)
-        colorize YELLOW "$line"
-        ;;
-    *ContainerCreating*)
-        colorize CYAN "$line"
-        ;;
-    *Running*)
-        # Check if all containers are ready
-        if [[ "$ready_count" -eq "$total_count" ]] && [[ "$total_count" -gt 0 ]]; then
-            # All containers ready - show status in green
-            printf "$(colorize WHITE "%-60s") $(colorize WHITE "%-10s") $(colorize GREEN "%-15s") " "$name" "$ready" "$status"
-            if [[ "$restarts" -gt 0 ]]; then
-                printf "$(colorize YELLOW "%-10s") " "$restarts"
-            else
-                printf "%-10s " "$restarts"
-            fi
-            printf "%s\n" "$age"
-        else
-            # Not all containers ready - show status in yellow
-            printf "$(colorize WHITE "%-60s") $(colorize YELLOW "%-10s") $(colorize YELLOW "%-15s") " "$name" "$ready" "$status"
-            if [[ "$restarts" -gt 0 ]]; then
-                printf "$(colorize YELLOW "%-10s") " "$restarts"
-            else
-                printf "%-10s " "$restarts"
-            fi
-            printf "%s\n" "$age"
-        fi
-        ;;
-    *NotReady*)
-        printf "$(colorize WHITE "%-60s") $(colorize YELLOW "%-10s") $(colorize YELLOW "%-15s") " "$name" "$ready" "$status"
-        if [[ "$restarts" -gt 0 ]]; then
-            printf "$(colorize YELLOW "%-10s") " "$restarts"
-        else
-            printf "%-10s " "$restarts"
-        fi
-        printf "%s\n" "$age"
-        ;;
-    *)
-        echo "$line"
-        ;;
-    esac
-}
-
-colorize_container_line() {
-    local line="$1"
-
-    # Skip header line
-    if [[ "$line" =~ ^NAME ]]; then
-        echo "$line"
-        return
-    fi
-
-    local name=$(echo "$line" | awk '{print $1}')
-    local ready=$(echo "$line" | awk '{print $2}')
-    local status=$(echo "$line" | awk '{print $3}')
-    local image=$(echo "$line" | awk '{$1=$2=$3=""; print $0}' | sed 's/^[[:space:]]*//')
-
-    case "$status" in
-    Error | CrashLoopBackOff | OOMKilled)
-        printf "$(colorize RED "%-40s %-10s %-15s %s")\n" "$name" "$ready" "$status" "$image"
-        ;;
-    Completed | Terminated)
-        colorize GRAY "$line"
-        ;;
-    Running)
-        if [[ "$ready" == "true" ]]; then
-            printf "$(colorize WHITE "%-40s") $(colorize GREEN "%-10s") $(colorize GREEN "%-15s") $(colorize GRAY "%s")\n" "$name" "$ready" "$status" "$image"
-        else
-            printf "$(colorize WHITE "%-40s") $(colorize YELLOW "%-10s") $(colorize YELLOW "%-15s") $(colorize GRAY "%s")\n" "$name" "$ready" "$status" "$image"
-        fi
-        ;;
-    Waiting | Pending | ContainerCreating | PodInitializing)
-        printf "$(colorize WHITE "%-40s") $(colorize YELLOW "%-10s") $(colorize YELLOW "%-15s") $(colorize GRAY "%s")\n" "$name" "$ready" "$status" "$image"
-        ;;
-    *)
-        echo "$line"
-        ;;
-    esac
-}
-
-format_pods_output() {
-    {
-        printf "%-60s %-10s %-15s %-10s %s\n" "NAME" "READY" "STATUS" "RESTARTS" "AGE"
-        while IFS=$'\t' read -r name ready status restarts age; do
-            printf "%-60s %-10s %-15s %-10s %s\n" "$name" "$ready" "$status" "$restarts" "$age"
-        done <"$PODS_CACHE"
-    }
-}
-
-format_containers_output() {
-    local pod_name="$1"
-    {
-        printf "%-40s %-10s %-15s %s\n" "NAME" "READY" "STATUS" "IMAGE"
-        get_pod_containers "$pod_name" | while IFS=$'\t' read -r name type ready status image; do
-            printf "%-40s %-10s %-15s %s\n" "$name" "$ready" "$status" "$image"
-        done
-    }
-}
-
 list_pods() {
     if [[ ! -f "$PODS_CACHE" ]]; then
         refresh_cache
     fi
 
-    format_pods_output | while IFS= read -r line; do
-        colorize_pod_line "$line"
-    done
+    cat "$PODS_CACHE"
 }
 
 list_containers() {
@@ -300,9 +136,11 @@ list_containers() {
         refresh_cache
     fi
 
-    format_containers_output "$pod_name" | while IFS= read -r line; do
-        colorize_container_line "$line"
-    done
+    # Header
+    head -1 "$CONTAINERS_CACHE" | cut -f2-
+
+    # Containers
+    grep "${pod_name}" "$CONTAINERS_CACHE" | cut -f2-
 }
 
 # ============================================================================
@@ -329,17 +167,15 @@ exec_into_pod() {
     local pod="$1"
     echo "Executing into pod: $pod"
     # TODO: echo the full working kubectl command to screen before entering
-    kubectl exec -it "$pod" -- bash 2>/dev/null ||
-        kubectl exec -it "$pod" -- sh 2>/dev/null ||
-        echo "Failed to exec into pod $pod"
+    kubectl exec -it "$pod" -- bash ||
+        kubectl exec -it "$pod" -- sh
 }
 
 exec_into_container() {
     local container="$1"
     echo "Executing into container: $container in pod: $POD_NAME"
-    kubectl exec -it "$POD_NAME" -c "$container" -- bash 2>/dev/null ||
-        kubectl exec -it "$POD_NAME" -c "$container" -- sh 2>/dev/null ||
-        echo "Failed to exec into container $container"
+    kubectl exec -it "$POD_NAME" -c "$container" -- bash ||
+        kubectl exec -it "$POD_NAME" -c "$container" -- sh
 }
 
 describe_pod() {
@@ -383,22 +219,44 @@ describe_container() {
 
 view_logs() {
     local container="$1"
-    echo "Viewing logs for container: $container in pod: $POD_NAME"
-    echo ""
-    echo "Controls:"
-    echo "  - Press 'F' (Shift+F) to toggle follow mode"
-    echo "  - Press 'Ctrl+C' to exit follow mode"
-    echo "  - Press 'q' to quit"
-    echo "  - Use '/' to search"
-    echo "  - Use 'g' to go to beginning, 'G' to go to end"
-    echo ""
+    local fifo="/tmp/view_logs_fifo_$$"
+    mkfifo "$fifo" || { echo "Failed to create FIFO"; return 1; }
 
-    # View logs with less in follow mode (+F flag)
-    # User can press Ctrl+C to stop following and browse normally
-    # Then press F to resume following
-    kubectl logs "$POD_NAME" -c "$container" --tail="$LOG_TAIL_LINES" -f | less
+    local kubectl_args=(logs "$POD_NAME" -c "$container" --tail="$LOG_TAIL_LINES" --timestamps --follow)
 
-    echo ""
+    {
+        echo "================================================================================"
+        echo "Pod: $POD_NAME | Container: $container"
+        echo "================================================================================"
+        echo "CONTROLS:"
+        echo "  F (Shift+F) - Toggle follow mode    /pattern - Search forward"
+        echo "  Ctrl+C      - Exit follow mode      ?pattern - Search backward"
+        echo "  q           - Quit                  n        - Next search result"
+        echo "  g           - Go to beginning       N        - Previous search result"
+        echo "  G           - Go to end             h        - Show help"
+        echo "================================================================================"
+
+        if ! kubectl "${kubectl_args[@]}"; then
+            kubectl "${kubectl_args[@]}" --previous
+        fi
+    } | awk -v red="$RED" -v yellow="$YELLOW" -v gray="$GRAY" -v reset="$RESET" '
+        {
+            printf "%s%s%s ", gray, $1, reset;
+            msg = substr($0, index($0, $2));
+            gsub(/ERROR/, red "ERROR" reset, msg);
+            gsub(/WARN/, yellow "WARN" reset, msg);
+            print msg;
+        }
+    ' > "$fifo" &
+
+    local kubectl_pid=$!
+
+    less "$fifo"
+
+    kill "$kubectl_pid" 2>/dev/null
+    wait "$kubectl_pid" 2>/dev/null
+    rm -f "$fifo"
+
     echo "Returning to container view..."
 }
 # ============================================================================
@@ -453,6 +311,7 @@ manage_pods() {
         fzf_output=$(list_pods | fzf \
             --no-multi \
             --ansi \
+            --tiebreak=begin,index \
             --prompt="$prompt" \
             --height=100% \
             --header="$full_header" \
@@ -496,6 +355,7 @@ manage_containers() {
         fzf_output=$(list_containers "$pod_name" | fzf \
             --no-multi \
             --ansi \
+            --tiebreak=begin,index \
             --prompt="$prompt" \
             --height=100% \
             --header="$full_header" \
@@ -527,21 +387,11 @@ manage_containers() {
 }
 
 # ============================================================================
-# Initialize and Export
+# Export
 # ============================================================================
-init_globals() {
-    CONTEXT=$(get_current_context) || error_exit "Failed to get current context"
-    NAMESPACE=$(get_current_namespace)
-    init_cache_files
-}
-
 # Export functions and variables for fzf subshells
 export -f colorize
-export -f get_pod_containers
-export -f colorize_pod_line colorize_container_line
-export -f format_pods_output format_containers_output
 export -f list_pods list_containers refresh_cache fetch_data
-export -f generate_pod_list generate_container_list
 export -f copy_to_clipboard exec_into_pod exec_into_container
 export -f describe_pod describe_container view_logs
 
@@ -550,7 +400,7 @@ export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
 
 # Export cache file paths and other variables
 export CACHE_DIR CONTEXT NAMESPACE POD_NAME
-export PODS_CACHE CONTAINERS_CACHE RAW_DATA_CACHE
+export CACHE_BASE PODS_CACHE CONTAINERS_CACHE RAW_DATA_CACHE
 
 # ============================================================================
 # Main
@@ -558,12 +408,15 @@ export PODS_CACHE CONTAINERS_CACHE RAW_DATA_CACHE
 main() {
     check_dependencies "fzf" "kubectl" "jq"
 
-    init_globals
+    CONTEXT=$(get_current_context) || error_exit "Failed to get current context"
+    NAMESPACE=$(get_current_namespace)
 
-    # Initial data fetch
-    if ! fetch_data; then
-        error_exit "Failed to fetch initial data"
-    fi
+    CACHE_BASE="${CACHE_DIR}/${CONTEXT}/${NAMESPACE}"
+    mkdir -p "$CACHE_BASE"
+
+    RAW_DATA_CACHE="${CACHE_BASE}/raw_data.json"
+    PODS_CACHE="${CACHE_BASE}/pods"
+    CONTAINERS_CACHE="${CACHE_BASE}/containers"
 
     manage_pods
 }
