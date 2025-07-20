@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 from datetime import datetime, timezone
+from tabulate import tabulate
 
 # ANSI color codes
 COLORS = {
@@ -21,6 +22,11 @@ COLORS = {
 def colorize(color, text):
     """Apply color to text"""
     return f"{COLORS[color]}{text}{COLORS['RESET']}"
+
+
+def colorize_entire_row(color, row_data):
+    """Apply color to entire row"""
+    return [f"{COLORS[color]}{cell}{COLORS['RESET']}" for cell in row_data]
 
 
 def format_duration(seconds):
@@ -90,6 +96,7 @@ def get_pod_status(pod):
         return "Completed"
     elif phase == "Failed":
         return "Error"
+
     return phase
 
 
@@ -103,18 +110,39 @@ def get_pod_age(pod):
         creation_dt = datetime.fromisoformat(creation_time.replace("Z", "+00:00"))
         age_seconds = (now - creation_dt).total_seconds()
         return format_duration(age_seconds)
+
     return "0s"
 
 
+def get_row_color_for_pod_status(status):
+    """Determine row color based on pod status"""
+    if any(s in status for s in ["Error", "Failed", "CrashLoopBackOff"]):
+        return "RED"
+    elif any(s in status for s in ["Completed", "Terminated", "Succeeded"]):
+        return "GRAY"
+    else:
+        return None
+
+
+def get_row_color_for_container_status(status):
+    """Determine row color based on container status"""
+    if status in ["Error", "CrashLoopBackOff", "OOMKilled"]:
+        return "RED"
+    elif status in ["Completed", "Terminated"]:
+        return "GRAY"
+    else:
+        return None
+
+
 def process_pods(data):
-    """Process pods and return formatted lines"""
-    results = []
+    """Process pods and return table data"""
+    table_data = []
+
     for pod in data.get("items", []):
         name = pod.get("metadata", {}).get("name", "unknown")
-
-        # Count containers
         spec = pod.get("spec", {})
         status = pod.get("status", {})
+
         init_count = len(spec.get("initContainers", []))
         container_count = len(spec.get("containers", []))
         total_containers = init_count + container_count
@@ -128,6 +156,7 @@ def process_pods(data):
                 and state["terminated"].get("reason") == "Completed"
             ):
                 ready_count += 1
+
         for container in status.get("containerStatuses", []):
             if container.get("ready", False):
                 ready_count += 1
@@ -139,13 +168,40 @@ def process_pods(data):
         )
         age = get_pod_age(pod)
 
-        results.append((name, ready_display, pod_status, str(restarts), age))
-    return results
+        # Create row data without colors first
+        row_data = [name, ready_display, pod_status, str(restarts), age]
+
+        # Determine if entire row should be colored
+        row_color = get_row_color_for_pod_status(pod_status)
+
+        if row_color:
+            colored_row = colorize_entire_row(row_color, row_data)
+        else:
+            # Apply individual colors for non-RED/GRAY statuses
+            colored_row = [
+                colorize("WHITE", name),
+                colorize(
+                    (
+                        "GREEN"
+                        if ready_count == total_containers and total_containers > 0
+                        else "YELLOW"
+                    ),
+                    ready_display,
+                ),
+                colorize("GREEN" if pod_status == "Running" else "YELLOW", pod_status),
+                colorize("YELLOW" if int(restarts) > 0 else "WHITE", str(restarts)),
+                age,
+            ]
+
+        table_data.append(colored_row)
+
+    return table_data
 
 
 def process_containers(data):
-    """Process containers and return formatted lines"""
-    results = []
+    """Process containers and return table data"""
+    table_data = []
+
     for pod in data.get("items", []):
         pod_name = pod.get("metadata", {}).get("name", "unknown")
         spec = pod.get("spec", {})
@@ -169,7 +225,28 @@ def process_containers(data):
                     == "Completed"
                 ):
                     ready = "true"
-                results.append((pod_name, name, ready, state_desc, container["image"]))
+
+                # Create row data without colors first
+                row_data = [pod_name, name, ready, state_desc, container["image"]]
+
+                # Determine if entire row should be colored
+                row_color = get_row_color_for_container_status(state_desc)
+
+                if row_color:
+                    colored_row = colorize_entire_row(row_color, row_data)
+                else:
+                    # Apply individual colors for non-RED/GRAY statuses
+                    colored_row = [
+                        colorize("WHITE", pod_name),
+                        colorize("WHITE", name),
+                        colorize("GREEN" if ready.lower() == "true" else "RED", ready),
+                        colorize(
+                            "GREEN" if state_desc == "Running" else "YELLOW", state_desc
+                        ),
+                        colorize("GRAY", container["image"]),
+                    ]
+
+                table_data.append(colored_row)
 
         # Process regular containers
         containers = spec.get("containers", [])
@@ -182,58 +259,30 @@ def process_containers(data):
                 _, state_desc = get_container_state_info(
                     container_statuses[name].get("state", {})
                 )
-                results.append((pod_name, name, ready, state_desc, container["image"]))
 
-    return results
+                # Create row data without colors first
+                row_data = [pod_name, name, ready, state_desc, container["image"]]
 
+                # Determine if entire row should be colored
+                row_color = get_row_color_for_container_status(state_desc)
 
-def colorize_pod_line(name, ready, status, restarts, age):
-    """Colorize pod line based on status"""
-    restarts_int = int(restarts) if restarts.isdigit() else 0
-    ready_parts = ready.split("/")
-    ready_count = (
-        int(ready_parts[0]) if len(ready_parts) > 0 and ready_parts[0].isdigit() else 0
-    )
-    total_count = (
-        int(ready_parts[1]) if len(ready_parts) > 1 and ready_parts[1].isdigit() else 0
-    )
+                if row_color:
+                    colored_row = colorize_entire_row(row_color, row_data)
+                else:
+                    # Apply individual colors for non-RED/GRAY statuses
+                    colored_row = [
+                        colorize("WHITE", pod_name),
+                        colorize("WHITE", name),
+                        colorize("GREEN" if ready == "true" else "RED", ready),
+                        colorize(
+                            "GREEN" if state_desc == "Running" else "YELLOW", state_desc
+                        ),
+                        colorize("GRAY", container["image"]),
+                    ]
 
-    if any(s in status for s in ["Error", "Failed", "CrashLoopBackOff"]):
-        return colorize(
-            "RED", f"{name:<50} {ready:<10} {status:<20} {restarts:<10} {age}"
-        )
-    elif any(s in status for s in ["Completed", "Terminated", "Succeeded"]):
-        return colorize(
-            "GRAY", f"{name:<50} {ready:<10} {status:<20} {restarts:<10} {age}"
-        )
-    elif "Pending" in status or "ContainerCreating" in status:
-        return colorize(
-            "YELLOW", f"{name:<50} {ready:<10} {status:<20} {restarts:<10} {age}"
-        )
-    elif status == "Running" and ready_count == total_count and total_count > 0:
-        restart_color = "YELLOW" if restarts_int > 0 else "WHITE"
-        return f"{colorize('WHITE', f'{name:<50}')} {colorize('WHITE', f'{ready:<10}')} {colorize('GREEN', f'{status:<20}')} {colorize(restart_color, f'{restarts:<10}')} {age}"
-    elif "Running" in status or "NotReady" in status:
-        restart_color = "YELLOW" if restarts_int > 0 else "WHITE"
-        return f"{colorize('WHITE', f'{name:<50}')} {colorize('YELLOW', f'{ready:<10}')} {colorize('YELLOW', f'{status:<20}')} {colorize(restart_color, f'{restarts:<10}')} {age}"
-    else:
-        return f"{name:<50} {ready:<10} {status:<20} {restarts:<10} {age}"
+                table_data.append(colored_row)
 
-
-def colorize_container_line(name, ready, status, image):
-    """Colorize container line based on status"""
-    if status in ["Error", "CrashLoopBackOff", "OOMKilled"]:
-        return colorize("RED", f"{name:<50} {ready:<10} {status:<20} {image}")
-    elif status in ["Completed", "Terminated"]:
-        return colorize("GRAY", f"{name:<50} {ready:<10} {status:<20} {image}")
-    elif status == "Running":
-        ready_color = "GREEN" if ready.lower() == "true" else "RED"
-        status_color = "GREEN" if ready.lower() == "true" else "YELLOW"
-        return f"{colorize('WHITE', f'{name:<50}')} {colorize(ready_color, f'{ready:<10}')} {colorize(status_color, f'{status:<20}')} {colorize('GRAY', image)}"
-    elif status in ["Waiting", "Pending", "ContainerCreating", "PodInitializing"]:
-        return f"{colorize('WHITE', f'{name:<50}')} {colorize('YELLOW', f'{ready:<10}')} {colorize('YELLOW', f'{status:<20}')} {colorize('GRAY', image)}"
-    else:
-        return f"{name:<50} {ready:<10} {status:<20} {image}"
+    return table_data
 
 
 def main():
@@ -242,7 +291,6 @@ def main():
         "-i", "--input_file", nargs="?", help="Input JSON file (default: stdin)"
     )
     parser.add_argument("-o", "--output_dir", help="Output directory")
-
     args = parser.parse_args()
 
     # Read input
@@ -256,25 +304,39 @@ def main():
         print(f"Error reading input: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Process pods
-    results = process_pods(data)
-    header = f"{'NAME':<50} {'READY':<10} {'STATUS':<20} {'RESTARTS':<10} AGE"
-    lines = [colorize("WHITE", header)] + [
-        colorize_pod_line(*result) for result in results
+    # Process and format pods
+    pod_data = process_pods(data)
+    pod_headers = [
+        colorize("WHITE", "NAME"),
+        colorize("WHITE", "READY"),
+        colorize("WHITE", "STATUS"),
+        colorize("WHITE", "RESTARTS"),
+        colorize("WHITE", "AGE"),
     ]
-    output_text = "\n".join(lines)
-    with open(os.path.join(args.output_dir, "pods"), "w") as f:
-        f.write(output_text + "\n")
 
-    # Process containers
-    results = process_containers(data)
-    header = f"POD\t{'NAME':<50} {'READY':<10} {'STATUS':<20} IMAGE"
-    lines = [colorize("WHITE", header)] + [
-        result[0] + "\t" + colorize_container_line(*result[1:]) for result in results
+    pod_output = tabulate(
+        pod_data, headers=pod_headers, tablefmt="plain", stralign="left"
+    )
+
+    with open(os.path.join(args.output_dir, "pods"), "w") as f:
+        f.write(pod_output + "\n")
+
+    # Process and format containers
+    container_data = process_containers(data)
+    container_headers = [
+        colorize("WHITE", "POD"),
+        colorize("WHITE", "NAME"),
+        colorize("WHITE", "READY"),
+        colorize("WHITE", "STATUS"),
+        colorize("WHITE", "IMAGE"),
     ]
-    output_text = "\n".join(lines)
+
+    container_output = tabulate(
+        container_data, headers=container_headers, tablefmt="plain", stralign="left"
+    )
+
     with open(os.path.join(args.output_dir, "containers"), "w") as f:
-        f.write(output_text + "\n")
+        f.write(container_output + "\n")
 
 
 if __name__ == "__main__":
