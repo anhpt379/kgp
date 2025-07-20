@@ -165,17 +165,36 @@ copy_to_clipboard() {
 
 exec_into_pod() {
     local pod="$1"
+    echo "====================================================================="
     echo "Executing into pod: $pod"
-    # TODO: echo the full working kubectl command to screen before entering
-    kubectl exec -it "$pod" -- bash ||
-        kubectl exec -it "$pod" -- sh
+    echo "Command: kubectl exec -it $pod -- bash"
+    if kubectl exec -it "$pod" -- bash || kubectl exec -it "$pod" -- sh; then
+        # Success - no need to pause
+        return 0
+    else
+        # Failed - pause to show error
+        echo "Failed to exec into pod: $pod"
+        echo "Press any key to continue..."
+        read -n 1 -s
+        return 1
+    fi
 }
 
 exec_into_container() {
     local container="$1"
+    echo "====================================================================="
     echo "Executing into container: $container in pod: $POD_NAME"
-    kubectl exec -it "$POD_NAME" -c "$container" -- bash ||
-        kubectl exec -it "$POD_NAME" -c "$container" -- sh
+    echo "Command: kubectl exec -it $POD_NAME -c $container -- bash"
+    if kubectl exec -it "$POD_NAME" -c "$container" -- bash || kubectl exec -it "$POD_NAME" -c "$container" -- sh; then
+        # Success - no need to pause
+        return 0
+    else
+        # Failed - pause to show error
+        echo "Failed to exec into container: $container in pod: $POD_NAME"
+        echo "Press any key to continue..."
+        read -n 1 -s
+        return 1
+    fi
 }
 
 describe_pod() {
@@ -300,14 +319,13 @@ manage_pods() {
     start_background_refresh
     while true; do
         local context_header actions_header full_header prompt
-
         context_header=$(build_context_header)
         actions_header=$(build_actions_header "enter:containers" "exec" "describe" "copy" "refresh")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_pod_prompt)
 
         local fzf_output
-        # TODO: show all lines at once for listing pods
+        # Remove +abort from ctrl-e binding
         fzf_output=$(list_pods | fzf \
             --no-multi \
             --ansi \
@@ -316,7 +334,7 @@ manage_pods() {
             --height=100% \
             --header="$full_header" \
             --header-lines=1 \
-            --bind="ctrl-e:execute(exec_into_pod {1})+abort" \
+            --bind="ctrl-e:execute(exec_into_pod {1})" \
             --bind="ctrl-d:execute(describe_pod {1})" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})" \
             --bind="ctrl-r:reload(list_pods)" \
@@ -341,17 +359,16 @@ manage_pods() {
 manage_containers() {
     local pod_name="$1"
     POD_NAME="$pod_name"
-
+    
     while true; do
         local context_header actions_header full_header prompt
-
         context_header=$(build_context_header)
         actions_header=$(build_actions_header "enter:logs" "exec" "describe" "copy" "refresh" "back")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_container_prompt)
 
         local fzf_output
-        # TODO: show all lines at once for listing containers
+        # Remove +abort from ctrl-e binding
         fzf_output=$(list_containers "$pod_name" | fzf \
             --no-multi \
             --ansi \
@@ -360,7 +377,7 @@ manage_containers() {
             --height=100% \
             --header="$full_header" \
             --header-lines=1 \
-            --bind="ctrl-e:execute(exec_into_container {1})+abort" \
+            --bind="ctrl-e:execute(exec_into_container {1})" \
             --bind="ctrl-d:execute(describe_container {1})" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})" \
             --bind="ctrl-r:reload(list_containers $pod_name)" \
@@ -385,7 +402,6 @@ manage_containers() {
         fi
     done
 }
-
 # ============================================================================
 # Export
 # ============================================================================
