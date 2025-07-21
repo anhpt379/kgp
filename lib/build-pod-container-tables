@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Kubernetes Pod Processor - Formats pod and container data into readable tables"""
+"""Formats pod and container data into readable tables"""
 import json
 import os
 import sys
