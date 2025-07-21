@@ -213,6 +213,13 @@ exec_into_container() {
     fi
 }
 
+delete_pod() {
+    local pod="$1"
+    echo "====================================================================="
+    echo "Deleting pod: $pod"
+    kubectl delete pod "$pod"
+}
+
 describe_pod() {
     local pod="$1"
     echo "====================================================================="
@@ -320,6 +327,7 @@ build_actions_header() {
         "enter:logs") header_parts+=("$(colorize MAGENTA "ENTER") to view logs") ;;
         "exec") header_parts+=("$(colorize MAGENTA "CTRL-E") to exec") ;;
         "describe") header_parts+=("$(colorize MAGENTA "CTRL-D") to describe") ;;
+        "delete") header_parts+=("$(colorize MAGENTA "CTRL-K") to delete") ;;
         "copy") header_parts+=("$(colorize MAGENTA "CTRL-Y") to copy name") ;;
         "refresh") header_parts+=("$(colorize MAGENTA "CTRL-R") to refresh") ;;
         "up") header_parts+=("$(colorize MAGENTA "ESC") to go up") ;;
@@ -347,7 +355,7 @@ manage_pods() {
     while true; do
         local context_header actions_header full_header prompt
         context_header=$(build_context_header)
-        actions_header=$(build_actions_header "enter:containers" "exec" "describe" "copy" "refresh" "quit")
+        actions_header=$(build_actions_header "enter:containers" "exec" "describe" "delete" "copy" "refresh" "quit")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_pod_prompt)
 
@@ -363,6 +371,7 @@ manage_pods() {
             --query="$initial_query" \
             --bind="ctrl-e:execute(exec_into_pod {1})+reload(list_pods)" \
             --bind="ctrl-d:execute(describe_pod {1})+reload(list_pods)" \
+            --bind="ctrl-k:execute(delete_pod {1} && refresh_cache)+reload(list_pods)" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})+reload(list_pods)" \
             --bind="ctrl-r:reload(refresh_cache && list_pods)" \
             --bind="ctrl-c:abort" \
@@ -463,7 +472,7 @@ manage_containers() {
 export -f colorize
 export -f list_pods list_containers refresh_cache fetch_data
 export -f copy_to_clipboard exec_into_pod exec_into_container
-export -f describe_pod describe_container view_logs
+export -f delete_pod describe_pod describe_container view_logs
 
 # Export color constants
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
