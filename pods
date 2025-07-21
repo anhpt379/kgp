@@ -5,14 +5,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOCAL_LIB="${SCRIPT_DIR}/lib/build-pod-container-tables"
+SOURCE_LIB="${SCRIPT_DIR}/lib/build-pod-container-tables"
+LOCAL_LIB="${HOME}/.local/lib/kselect/build-pod-container-tables"
 SYSTEM_LIB="/usr/local/lib/kselect/build-pod-container-tables"
-if [[ -f "$LOCAL_LIB" ]]; then
+if [[ -f "$SOURCE_LIB" ]]; then
+    LIB_PATH="$SOURCE_LIB"
+elif [[ -f "$LOCAL_LIB" ]]; then
     LIB_PATH="$LOCAL_LIB"
 elif [[ -f "$SYSTEM_LIB" ]]; then
     LIB_PATH="$SYSTEM_LIB"
 else
-    echo "Error: Cannot find build-pod-container-tables" >&2
+    echo "Error: Cannot find build-pod-container-tables at ${SOURCE_LIB}, ${LOCAL_LIB} and ${SYSTEM_LIB}" >&2
     exit 1
 fi
 
