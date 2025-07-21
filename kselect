@@ -107,7 +107,7 @@ fetch_data() {
         echo "Failed to process pod data" >&2
         return 1
     fi
-    
+
     return 0
 }
 
@@ -120,10 +120,10 @@ refresh_cache() {
         echo "Error: Missing required cache variables" >&2
         return 1
     fi
-    
+
     # Ensure cache directory exists
     mkdir -p "$CACHE_BASE"
-    
+
     if fetch_data; then
         return 0
     else
@@ -280,55 +280,43 @@ describe_container() {
     ' | less
 }
 
+highlight_logs() {
+    awk -v red="$RED" -v yellow="$YELLOW" -v gray="$GRAY" -v reset="$RESET" '
+        {
+            printf "%s%s%s ", gray, $1, reset;
+            msg = substr($0, index($0, $2));
+            gsub(/ERROR/, red "ERROR" reset, msg);
+            gsub(/WARN/, yellow "WARN" reset, msg);
+            print msg;
+        }'
+}
+
 view_logs() {
     local container="$1"
 
-    # Display header
-    cat <<EOF
-================================================================================
-Pod: $POD_NAME | Container: $container
-================================================================================
-CONTROLS:  F (Shift+F) - Toggle follow mode    /pattern - Search forward
-Ctrl+C      - Exit follow mode      ?pattern - Search backward
-q           - Quit                  n        - Next search result
-g           - Go to beginning       N        - Previous search result
-G           - Go to end             h        - Show help
-================================================================================
-EOF
+    echo "====================================================================="
+    echo "Viewing logs container: $container in pod: $POD_NAME"
+    echo "Command: kubectl logs $POD_NAME -c $container --timestamps --follow"
 
-    # Build kubectl command
-    local kubectl_args=(logs "$POD_NAME" -c "$container" --tail="$LOG_TAIL_LINES" --timestamps --follow)
+    local fifo_dir="${CACHE_BASE}/${POD_NAME}"
+    mkdir -p "$fifo_dir"
 
-    # Stream logs directly through awk to less
-    {
-        # Try current logs first, fallback to previous if failed
-        if ! kubectl "${kubectl_args[@]}" 2>/dev/null; then
-            echo "Current logs failed, trying previous logs..."
-            kubectl logs "$POD_NAME" -c "$container" --tail="$LOG_TAIL_LINES" --timestamps --previous 2>/dev/null
-        fi
-    } | awk -v red="${RED:-\033[31m}" -v yellow="${YELLOW:-\033[33m}" -v gray="${GRAY:-\033[90m}" -v reset="${RESET:-\033[0m}" '
-        /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ {
-            # Extract timestamp and message
-            timestamp = $1
-            msg = substr($0, length($1) + 2)
-            
-            # Colorize timestamp
-            printf "%s%s%s ", gray, timestamp, reset
-            
-            # Colorize log levels
-            gsub(/ERROR/, red "ERROR" reset, msg)
-            gsub(/WARN(ING)?/, yellow "&" reset, msg)
-            
-            print msg
-            next
-        }
-        # Print non-timestamped lines as-is
-        { print }
-    ' | less
+    local fifo="${fifo_dir}/${container}.log"
+    rm -f "$fifo"
+    mkfifo "$fifo"
 
-    echo "Returning to container view..."
+    # Start kubectl logs writing to fifo in background
+    kubectl logs "$POD_NAME" -c "$container" --timestamps --follow | highlight_logs >"$fifo" 2>/dev/null &
+    local pid=$!
+
+    # Read from fifo directly
+    less <"$fifo"
+
+    # Cleanup after less exits
+    kill "$pid" 2>/dev/null || true
+    rm "$fifo"
 }
-#
+
 # ============================================================================
 # UI Functions
 # ============================================================================
@@ -491,7 +479,7 @@ manage_containers() {
 export -f colorize
 export -f list_pods list_containers refresh_cache fetch_data
 export -f copy_to_clipboard exec_into_pod exec_into_container
-export -f delete_pod describe_pod describe_container view_logs
+export -f delete_pod describe_pod describe_container view_logs highlight_logs
 
 # Export color constants
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
