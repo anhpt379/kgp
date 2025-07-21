@@ -323,6 +323,7 @@ build_actions_header() {
         "copy") header_parts+=("$(colorize MAGENTA "CTRL-Y") copy") ;;
         "refresh") header_parts+=("$(colorize MAGENTA "CTRL-R") refresh") ;;
         "back") header_parts+=("$(colorize MAGENTA "ESC") back") ;;
+        "quit") header_parts+=("$(colorize MAGENTA "CTRL-C") quit") ;;
         esac
     done
 
@@ -344,12 +345,11 @@ manage_pods() {
     while true; do
         local context_header actions_header full_header prompt
         context_header=$(build_context_header)
-        actions_header=$(build_actions_header "enter:containers" "exec" "describe" "copy" "refresh")
+        actions_header=$(build_actions_header "enter:containers" "exec" "describe" "copy" "refresh" "quit")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_pod_prompt)
 
         local fzf_output
-        # Remove +abort from ctrl-e binding
         fzf_output=$(list_pods | fzf \
             --no-multi \
             --ansi \
@@ -362,8 +362,11 @@ manage_pods() {
             --bind="ctrl-d:execute(describe_pod {1})" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})" \
             --bind="ctrl-r:reload(list_pods)" \
+            --bind="ctrl-c:abort" \
             --print-query --expect=enter 2>/dev/null) || {
-            break
+            # fzf was interrupted or aborted - exit immediately
+            stop_background_refresh
+            exit 0
         }
 
         # Parse fzf output
@@ -374,7 +377,12 @@ manage_pods() {
         # Handle selection
         if [[ -n "$selection" && "$key" == "enter" ]]; then
             local pod_name=$(echo "$selection" | awk '{print $1}')
-            manage_containers "$pod_name"
+            # Check if manage_containers returned with exit code indicating full exit
+            if ! manage_containers "$pod_name"; then
+                # Container view requested full exit
+                stop_background_refresh
+                exit 0
+            fi
         fi
     done
     stop_background_refresh
@@ -387,12 +395,11 @@ manage_containers() {
     while true; do
         local context_header actions_header full_header prompt
         context_header=$(build_context_header)
-        actions_header=$(build_actions_header "enter:logs" "exec" "describe" "copy" "refresh" "back")
+        actions_header=$(build_actions_header "enter:logs" "exec" "describe" "back" "quit")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_container_prompt)
 
         local fzf_output
-        # Remove +abort from ctrl-e binding
         fzf_output=$(list_containers "$pod_name" | fzf \
             --no-multi \
             --ansi \
@@ -405,8 +412,10 @@ manage_containers() {
             --bind="ctrl-d:execute(describe_container {1})" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})" \
             --bind="ctrl-r:reload(list_containers $pod_name)" \
+            --bind="ctrl-c:abort" \
             --print-query --expect=enter,esc 2>/dev/null) || {
-            break
+            # fzf was interrupted or aborted - signal full exit
+            return 1
         }
 
         # Parse fzf output
@@ -416,7 +425,8 @@ manage_containers() {
 
         # Handle exit conditions
         if [[ "$key" == "esc" ]]; then
-            break
+            # ESC means go back to pod view (normal return)
+            return 0
         fi
 
         # Handle selection
@@ -426,6 +436,7 @@ manage_containers() {
         fi
     done
 }
+
 # ============================================================================
 # Export
 # ============================================================================
