@@ -203,7 +203,7 @@ exec_into_pod() {
     echo "====================================================================="
     echo "Executing into pod: $pod"
     echo "Command: kubectl exec -it $pod -- bash"
-    if kubectl exec -it "$pod" -- bash || kubectl exec -it "$pod" -- sh; then
+    if kubectl exec -it "$pod" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
         # Success - no need to pause
         return 0
     else
@@ -219,8 +219,8 @@ exec_into_container() {
     local container="$1"
     echo "====================================================================="
     echo "Executing into container: $container in pod: $POD_NAME"
-    echo "Command: kubectl exec -it $POD_NAME -c $container -- bash"
-    if kubectl exec -it "$POD_NAME" -c "$container" -- bash || kubectl exec -it "$POD_NAME" -c "$container" -- sh; then
+    echo "Command: kubectl exec -it $POD_NAME -c $container -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
+    if kubectl exec -it "$POD_NAME" -c "$container" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
         # Success - no need to pause
         return 0
     else
