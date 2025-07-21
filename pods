@@ -305,9 +305,8 @@ EOF
 # ============================================================================
 # UI Functions
 # ============================================================================
-# TODO: Have a better/prettier context & action header
 build_context_header() {
-    echo -e "Context: $CONTEXT"
+    echo -e "⎈ $CONTEXT"
 }
 
 build_actions_header() {
@@ -316,20 +315,20 @@ build_actions_header() {
 
     for action in "${actions[@]}"; do
         case "$action" in
-        "enter:containers") header_parts+=("$(colorize MAGENTA "ENTER") containers") ;;
-        "enter:logs") header_parts+=("$(colorize MAGENTA "ENTER") logs") ;;
-        "exec") header_parts+=("$(colorize MAGENTA "CTRL-E") exec") ;;
-        "describe") header_parts+=("$(colorize MAGENTA "CTRL-D") describe") ;;
-        "copy") header_parts+=("$(colorize MAGENTA "CTRL-Y") copy") ;;
-        "refresh") header_parts+=("$(colorize MAGENTA "CTRL-R") refresh") ;;
-        "back") header_parts+=("$(colorize MAGENTA "ESC") back") ;;
-        "quit") header_parts+=("$(colorize MAGENTA "CTRL-C") quit") ;;
+        "enter:containers") header_parts+=("$(colorize MAGENTA "ENTER") to list containers") ;;
+        "enter:logs") header_parts+=("$(colorize MAGENTA "ENTER") to view logs") ;;
+        "exec") header_parts+=("$(colorize MAGENTA "CTRL-E") to exec") ;;
+        "describe") header_parts+=("$(colorize MAGENTA "CTRL-D") to describe") ;;
+        "copy") header_parts+=("$(colorize MAGENTA "CTRL-Y") to copy name") ;;
+        "refresh") header_parts+=("$(colorize MAGENTA "CTRL-R") to refresh") ;;
+        "up") header_parts+=("$(colorize MAGENTA "ESC") to go up") ;;
+        "quit") header_parts+=("$(colorize MAGENTA "CTRL-C") to quit") ;;
         esac
     done
 
-    # Join with " | "
-    local IFS=" | "
-    echo -e "${header_parts[*]}"
+    printf "%s" "${header_parts[0]}"
+    printf ", %s" "${header_parts[@]:1}"
+    echo
 }
 
 build_pod_prompt() {
@@ -395,7 +394,7 @@ manage_containers() {
     while true; do
         local context_header actions_header full_header prompt
         context_header=$(build_context_header)
-        actions_header=$(build_actions_header "enter:logs" "exec" "describe" "back" "quit")
+        actions_header=$(build_actions_header "enter:logs" "exec" "describe" "up" "quit")
         full_header="${context_header}"$'\n'"${actions_header}"
         prompt=$(build_container_prompt)
 
