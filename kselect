@@ -103,14 +103,33 @@ fetch_data() {
     mv "$temp_file" "$RAW_DATA_CACHE"
 
     # Process the data into different views
-    "$LIB_PATH" -i "$RAW_DATA_CACHE" -o "$CACHE_BASE"
+    if ! "$LIB_PATH" -i "$RAW_DATA_CACHE" -o "$CACHE_BASE"; then
+        echo "Failed to process pod data" >&2
+        return 1
+    fi
+    
+    return 0
 }
 
 # ============================================================================
 # Cache Management
 # ============================================================================
 refresh_cache() {
-    fetch_data 2>/dev/null || echo "Failed to refresh cache" >&2
+    # Ensure we have all required variables
+    if [[ -z "$RAW_DATA_CACHE" || -z "$CACHE_BASE" || -z "$LIB_PATH" ]]; then
+        echo "Error: Missing required cache variables" >&2
+        return 1
+    fi
+    
+    # Ensure cache directory exists
+    mkdir -p "$CACHE_BASE"
+    
+    if fetch_data; then
+        return 0
+    else
+        echo "Failed to refresh cache" >&2
+        return 1
+    fi
 }
 
 background_refresh() {
@@ -478,6 +497,7 @@ export -f delete_pod describe_pod describe_container view_logs
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
 
 # Export cache file paths and other variables
+export LIB_PATH
 export CACHE_DIR CONTEXT NAMESPACE POD_NAME
 export CACHE_BASE PODS_CACHE CONTAINERS_CACHE RAW_DATA_CACHE
 
@@ -491,7 +511,6 @@ main() {
     NAMESPACE=$(get_current_namespace)
 
     CACHE_BASE="${CACHE_DIR}/${CONTEXT}/${NAMESPACE}"
-    mkdir -p "$CACHE_BASE"
 
     RAW_DATA_CACHE="${CACHE_BASE}/raw_data.json"
     PODS_CACHE="${CACHE_BASE}/pods"
