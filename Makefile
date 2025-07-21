@@ -11,10 +11,10 @@ endif
 all: install
 
 install:
-	install -Dm755 pods $(INSTALL_BIN_DIR)/kselect-pods
+	install -Dm755 kselect $(INSTALL_BIN_DIR)/kselect
 	install -d $(INSTALL_LIB_DIR)
 	install -m755 lib/build-pod-container-tables $(INSTALL_LIB_DIR)/build-pod-container-tables
 
 uninstall:
-	rm -f $(INSTALL_BIN_DIR)/kselect-pods
+	rm -f $(INSTALL_BIN_DIR)/kselect
 	rm -rf $(INSTALL_LIB_DIR)
