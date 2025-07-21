@@ -350,7 +350,7 @@ build_actions_header() {
         "copy") header_parts+=("$(colorize MAGENTA "CTRL-Y") to copy name") ;;
         "refresh") header_parts+=("$(colorize MAGENTA "CTRL-R") to refresh") ;;
         "up") header_parts+=("$(colorize MAGENTA "ESC") to go up") ;;
-        "quit") header_parts+=("$(colorize MAGENTA "CTRL-C") to quit") ;;
+        "quit") header_parts+=("$(colorize MAGENTA "CTRL-Q") to quit") ;;
         esac
     done
 
@@ -393,7 +393,7 @@ manage_pods() {
             --bind="ctrl-k:execute(delete_pod {1} && refresh_cache)+reload(list_pods)" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})+reload(list_pods)" \
             --bind="ctrl-r:reload(refresh_cache && list_pods)" \
-            --bind="ctrl-c:abort" \
+            --bind="ctrl-q:abort" \
             --print-query --expect=enter 2>/dev/null) || {
             # fzf was interrupted or aborted - exit immediately
             stop_background_refresh
@@ -452,8 +452,8 @@ manage_containers() {
             --bind="ctrl-d:execute(describe_container {1})+reload(list_containers $pod_name)" \
             --bind="ctrl-y:execute(copy_to_clipboard {1})+reload(list_containers $pod_name)" \
             --bind="ctrl-r:reload(refresh_cache && list_containers $pod_name)" \
-            --bind="ctrl-c:abort" \
-            --print-query --expect=enter,esc 2>/dev/null) || {
+            --bind="ctrl-q:abort" \
+            --print-query --expect=enter,esc,ctrl-c 2>/dev/null) || {
             # fzf was interrupted or aborted - signal full exit
             return 1
         }
@@ -464,8 +464,8 @@ manage_containers() {
         local selection=$(echo "$fzf_output" | sed -n '3p')
 
         # Handle exit conditions
-        if [[ "$key" == "esc" ]]; then
-            # ESC means go back to pod view (normal return)
+        if [[ "$key" == "esc" || "$key" == "ctrl-c" ]]; then
+            # ESC/CTRL-C means go back to pod view (normal return)
             # Return the current query so pod view can restore it
             echo "$query"
             return 0
