@@ -5,24 +5,31 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_LIB="${SCRIPT_DIR}/lib/build-pod-container-tables"
-LOCAL_LIB="${HOME}/.local/lib/kselect/build-pod-container-tables"
-SYSTEM_LIB="/usr/local/lib/kselect/build-pod-container-tables"
-if [[ -f "$SOURCE_LIB" ]]; then
-    LIB_PATH="$SOURCE_LIB"
-elif [[ -f "$LOCAL_LIB" ]]; then
-    LIB_PATH="$LOCAL_LIB"
-elif [[ -f "$SYSTEM_LIB" ]]; then
-    LIB_PATH="$SYSTEM_LIB"
-else
-    echo "Error: Cannot find build-pod-container-tables at ${SOURCE_LIB}, ${LOCAL_LIB} and ${SYSTEM_LIB}" >&2
+
+# Find the `build-pod-container-tables` library
+find_lib() {
+    local paths=(
+        "${SCRIPT_DIR}/lib/build-pod-container-tables"
+        "${HOME}/.local/lib/kselect/build-pod-container-tables"
+        "/usr/local/lib/kselect/build-pod-container-tables"
+    )
+
+    for path in "${paths[@]}"; do
+        if [[ -f "$path" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+
+    echo "Error: Cannot find build-pod-container-tables library" >&2
     exit 1
-fi
+}
+
+LIB_PATH=$(find_lib)
 
 # ============================================================================
 # Configuration
 # ============================================================================
-
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
@@ -32,7 +39,6 @@ readonly MAGENTA='\033[0;35m'
 readonly WHITE='\033[0;37m'
 readonly RESET='\033[0m'
 
-readonly CACHE_DIR="/tmp/kselect"
 readonly CACHE_REFRESH_INTERVAL=30
 readonly LOG_TAIL_LINES=100
 
@@ -41,11 +47,7 @@ CONTEXT=""
 NAMESPACE=""
 POD_NAME=""
 BG_REFRESH_PID=""
-
-# Cache files
-PODS_CACHE=""
-CONTAINERS_CACHE=""
-RAW_DATA_CACHE=""
+CACHE_DIR=""
 
 # ============================================================================
 # Utility Functions
@@ -88,9 +90,17 @@ check_dependencies() {
 }
 
 # ============================================================================
-# Data Fetching
+# Cache Functions - Simplified
 # ============================================================================
-fetch_data() {
+get_cache_file() {
+    local file_type="$1"
+    echo "${CACHE_DIR}/${file_type}"
+}
+
+refresh_cache() {
+    mkdir -p "$CACHE_DIR"
+
+    local raw_data_file=$(get_cache_file "raw_data.json")
     local temp_file=$(mktemp)
 
     # Single kubectl call to get all pod data with containers
@@ -100,10 +110,10 @@ fetch_data() {
         return 1
     fi
 
-    mv "$temp_file" "$RAW_DATA_CACHE"
+    mv "$temp_file" "$raw_data_file"
 
     # Process the data into different views
-    if ! "$LIB_PATH" -i "$RAW_DATA_CACHE" -o "$CACHE_BASE"; then
+    if ! "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"; then
         echo "Failed to process pod data" >&2
         return 1
     fi
@@ -112,26 +122,8 @@ fetch_data() {
 }
 
 # ============================================================================
-# Cache Management
+# Background Refresh
 # ============================================================================
-refresh_cache() {
-    # Ensure we have all required variables
-    if [[ -z "$RAW_DATA_CACHE" || -z "$CACHE_BASE" || -z "$LIB_PATH" ]]; then
-        echo "Error: Missing required cache variables" >&2
-        return 1
-    fi
-
-    # Ensure cache directory exists
-    mkdir -p "$CACHE_BASE"
-
-    if fetch_data; then
-        return 0
-    else
-        echo "Failed to refresh cache" >&2
-        return 1
-    fi
-}
-
 background_refresh() {
     while true; do
         sleep "$CACHE_REFRESH_INTERVAL"
@@ -158,24 +150,24 @@ trap stop_background_refresh EXIT INT TERM
 # Display Functions
 # ============================================================================
 list_pods() {
-    if [[ ! -f "$PODS_CACHE" ]]; then
+    local pods_file=$(get_cache_file "pods")
+    if [[ ! -f "$pods_file" ]]; then
         refresh_cache
     fi
-
-    cat "$PODS_CACHE"
+    cat "$pods_file"
 }
 
 list_containers() {
     local pod_name="$1"
-    if [[ ! -f "$CONTAINERS_CACHE" ]]; then
+    local containers_file=$(get_cache_file "containers")
+    if [[ ! -f "$containers_file" ]]; then
         refresh_cache
     fi
 
     # Header
-    head -1 "$CONTAINERS_CACHE" | awk '{print substr($0, index($0, $2))}'
-
+    head -1 "$containers_file" | awk '{print substr($0, index($0, $2))}'
     # Containers
-    grep "${pod_name}" "$CONTAINERS_CACHE" | awk '{print substr($0, index($0, $2))}'
+    grep "${pod_name}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
 }
 
 # ============================================================================
@@ -202,12 +194,9 @@ exec_into_pod() {
     local pod="$1"
     echo "====================================================================="
     echo "Executing into pod: $pod"
-    echo "Command: kubectl exec -it $pod -- bash"
     if kubectl exec -it "$pod" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
-        # Success - no need to pause
         return 0
     else
-        # Failed - pause to show error
         echo "Failed to exec into pod: $pod"
         echo "Press any key to continue..."
         read -n 1 -s
@@ -219,12 +208,9 @@ exec_into_container() {
     local container="$1"
     echo "====================================================================="
     echo "Executing into container: $container in pod: $POD_NAME"
-    echo "Command: kubectl exec -it $POD_NAME -c $container -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
     if kubectl exec -it "$POD_NAME" -c "$container" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
-        # Success - no need to pause
         return 0
     else
-        # Failed - pause to show error
         echo "Failed to exec into container: $container in pod: $POD_NAME"
         echo "Press any key to continue..."
         read -n 1 -s
@@ -250,32 +236,21 @@ describe_container() {
     local container="$1"
     echo "====================================================================="
     echo "Describing container: $container in pod: $POD_NAME"
-
-    # Get the kubectl describe output and extract the specific container section
     kubectl describe pod "$POD_NAME" |
         awk -v container="$container" '
-        # Start capturing when we find either containers section
         /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
-
-        # Found the target container (2 spaces + container name + colon)
         in_containers && $0 ~ "^  " container ":$" {
             found = 1
             print $0
             next
         }
-
-        # Stop capturing when we hit another container at same level
         found && /^  [^ ]+:$/ && $0 !~ "^    " {
             found = 0
         }
-
-        # Stop capturing when we hit a new top-level section
         found && /^[^ ]/ {
             found = 0
             in_containers = 0
         }
-
-        # Print lines while in the target container section
         found { print }
     ' | less
 }
@@ -293,28 +268,21 @@ highlight_logs() {
 
 view_logs() {
     local container="$1"
-
     echo "====================================================================="
     echo "Viewing logs container: $container in pod: $POD_NAME"
-    echo "Command: kubectl logs $POD_NAME -c $container --timestamps --follow"
 
-    local fifo_dir="${CACHE_BASE}/${POD_NAME}"
-    mkdir -p "$fifo_dir"
+    local log_fifo="${CACHE_DIR}/logs/${POD_NAME}/${container}.log"
+    mkdir -p "$(dirname "$log_fifo")"
+    rm -f "$log_fifo"
+    mkfifo "$log_fifo"
 
-    local fifo="${fifo_dir}/${container}.log"
-    rm -f "$fifo"
-    mkfifo "$fifo"
-
-    # Start kubectl logs writing to fifo in background
-    kubectl logs "$POD_NAME" -c "$container" --timestamps --follow | highlight_logs >"$fifo" 2>/dev/null &
+    kubectl logs "$POD_NAME" -c "$container" --timestamps --follow | highlight_logs >"$log_fifo" 2>/dev/null &
     local pid=$!
 
-    # Read from fifo directly
-    less <"$fifo"
+    less <"$log_fifo"
 
-    # Cleanup after less exits
     kill "$pid" 2>/dev/null || true
-    rm "$fifo"
+    rm "$log_fifo"
 }
 
 # ============================================================================
@@ -327,7 +295,6 @@ build_context_header() {
 build_actions_header() {
     local actions=("$@")
     local header_parts=()
-
     for action in "${actions[@]}"; do
         case "$action" in
         "enter:containers") header_parts+=("$(colorize MAGENTA "ENTER") to list containers") ;;
@@ -341,7 +308,6 @@ build_actions_header() {
         "quit") header_parts+=("$(colorize MAGENTA "CTRL-Q") to quit") ;;
         esac
     done
-
     printf "%s" "${header_parts[0]}"
     printf ", %s" "${header_parts[@]:1}"
     echo
@@ -356,7 +322,7 @@ build_container_prompt() {
 }
 
 manage_pods() {
-    local initial_query="${1:-}" # Accept initial query parameter
+    local initial_query="${1:-}"
     start_background_refresh
 
     while true; do
@@ -383,40 +349,34 @@ manage_pods() {
             --bind="ctrl-r:reload(refresh_cache && list_pods)" \
             --bind="ctrl-q:abort" \
             --print-query --expect=enter 2>/dev/null) || {
-            # fzf was interrupted or aborted - exit immediately
             stop_background_refresh
             exit 0
         }
 
-        # Parse fzf output
         local query=$(echo "$fzf_output" | sed -n '1p')
         local key=$(echo "$fzf_output" | sed -n '2p')
         local selection=$(echo "$fzf_output" | sed -n '3p')
 
-        # Handle selection
         if [[ -n "$selection" && "$key" == "enter" ]]; then
             local pod_name=$(echo "$selection" | awk '{print $1}')
-            # Pass the current query to manage_containers and get back the query to restore
             local returned_query
             returned_query=$(manage_containers "$pod_name" "")
             if [[ $? -eq 1 ]]; then
-                # Container view requested full exit
                 stop_background_refresh
                 exit 0
             fi
-            # Set the query for next iteration (when returning from container view)
             initial_query="$query"
         else
-            # Clear initial query after first iteration if no selection was made
             initial_query=""
         fi
     done
+
     stop_background_refresh
 }
 
 manage_containers() {
     local pod_name="$1"
-    local initial_query="${2:-}" # Accept initial query parameter
+    local initial_query="${2:-}"
     POD_NAME="$pod_name"
 
     while true; do
@@ -442,31 +402,23 @@ manage_containers() {
             --bind="ctrl-r:reload(refresh_cache && list_containers $pod_name)" \
             --bind="ctrl-q:abort" \
             --print-query --expect=enter,esc,ctrl-c 2>/dev/null) || {
-            # fzf was interrupted or aborted - signal full exit
             return 1
         }
 
-        # Parse fzf output
         local query=$(echo "$fzf_output" | sed -n '1p')
         local key=$(echo "$fzf_output" | sed -n '2p')
         local selection=$(echo "$fzf_output" | sed -n '3p')
 
-        # Handle exit conditions
         if [[ "$key" == "esc" || "$key" == "ctrl-c" ]]; then
-            # ESC/CTRL-C means go back to pod view (normal return)
-            # Return the current query so pod view can restore it
             echo "$query"
             return 0
         fi
 
-        # Handle selection
         if [[ -n "$selection" && "$key" == "enter" ]]; then
             local container_name=$(echo "$selection" | awk '{print $1}')
             view_logs "$container_name"
-            # After viewing logs, keep the current query for next iteration
             initial_query="$query"
         else
-            # Clear initial query after first iteration if no selection was made
             initial_query=""
         fi
     done
@@ -475,19 +427,15 @@ manage_containers() {
 # ============================================================================
 # Export
 # ============================================================================
-# Export functions and variables for fzf subshells
-export -f colorize
-export -f list_pods list_containers refresh_cache fetch_data
+# Export functions for fzf subshells
+export -f colorize get_cache_file
+export -f list_pods list_containers refresh_cache
 export -f copy_to_clipboard exec_into_pod exec_into_container
 export -f delete_pod describe_pod describe_container view_logs highlight_logs
 
-# Export color constants
+# Export constants
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
-
-# Export cache file paths and other variables
-export LIB_PATH
-export CACHE_DIR CONTEXT NAMESPACE POD_NAME
-export CACHE_BASE PODS_CACHE CONTAINERS_CACHE RAW_DATA_CACHE
+export LIB_PATH CACHE_DIR CONTEXT NAMESPACE POD_NAME
 
 # ============================================================================
 # Main
@@ -498,13 +446,9 @@ main() {
     CONTEXT=$(get_current_context) || error_exit "Failed to get current context"
     NAMESPACE=$(get_current_namespace)
 
-    CACHE_BASE="${CACHE_DIR}/${CONTEXT}/${NAMESPACE}"
+    CACHE_DIR="/tmp/kselect/${CONTEXT}/${NAMESPACE}"
 
-    RAW_DATA_CACHE="${CACHE_BASE}/raw_data.json"
-    PODS_CACHE="${CACHE_BASE}/pods"
-    CONTAINERS_CACHE="${CACHE_BASE}/containers"
-
-    manage_pods "" # Start with empty query
+    manage_pods
 }
 
 main "$@"
