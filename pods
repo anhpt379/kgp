@@ -302,6 +302,7 @@ EOF
 
     echo "Returning to container view..."
 }
+#
 # ============================================================================
 # UI Functions
 # ============================================================================
@@ -340,7 +341,9 @@ build_container_prompt() {
 }
 
 manage_pods() {
+    local initial_query="${1:-}" # Accept initial query parameter
     start_background_refresh
+
     while true; do
         local context_header actions_header full_header prompt
         context_header=$(build_context_header)
@@ -357,10 +360,11 @@ manage_pods() {
             --height=100% \
             --header="$full_header" \
             --header-lines=1 \
-            --bind="ctrl-e:execute(exec_into_pod {1})" \
-            --bind="ctrl-d:execute(describe_pod {1})" \
-            --bind="ctrl-y:execute(copy_to_clipboard {1})" \
-            --bind="ctrl-r:reload(list_pods)" \
+            --query="$initial_query" \
+            --bind="ctrl-e:execute(exec_into_pod {1})+reload(list_pods)" \
+            --bind="ctrl-d:execute(describe_pod {1})+reload(list_pods)" \
+            --bind="ctrl-y:execute(copy_to_clipboard {1})+reload(list_pods)" \
+            --bind="ctrl-r:reload(refresh_cache && list_pods)" \
             --bind="ctrl-c:abort" \
             --print-query --expect=enter 2>/dev/null) || {
             # fzf was interrupted or aborted - exit immediately
@@ -376,12 +380,19 @@ manage_pods() {
         # Handle selection
         if [[ -n "$selection" && "$key" == "enter" ]]; then
             local pod_name=$(echo "$selection" | awk '{print $1}')
-            # Check if manage_containers returned with exit code indicating full exit
-            if ! manage_containers "$pod_name"; then
+            # Pass the current query to manage_containers and get back the query to restore
+            local returned_query
+            returned_query=$(manage_containers "$pod_name" "")
+            if [[ $? -eq 1 ]]; then
                 # Container view requested full exit
                 stop_background_refresh
                 exit 0
             fi
+            # Set the query for next iteration (when returning from container view)
+            initial_query="$query"
+        else
+            # Clear initial query after first iteration if no selection was made
+            initial_query=""
         fi
     done
     stop_background_refresh
@@ -389,6 +400,7 @@ manage_pods() {
 
 manage_containers() {
     local pod_name="$1"
+    local initial_query="${2:-}" # Accept initial query parameter
     POD_NAME="$pod_name"
 
     while true; do
@@ -407,10 +419,11 @@ manage_containers() {
             --height=100% \
             --header="$full_header" \
             --header-lines=1 \
-            --bind="ctrl-e:execute(exec_into_container {1})" \
-            --bind="ctrl-d:execute(describe_container {1})" \
-            --bind="ctrl-y:execute(copy_to_clipboard {1})" \
-            --bind="ctrl-r:reload(list_containers $pod_name)" \
+            --query="$initial_query" \
+            --bind="ctrl-e:execute(exec_into_container {1})+reload(list_containers $pod_name)" \
+            --bind="ctrl-d:execute(describe_container {1})+reload(list_containers $pod_name)" \
+            --bind="ctrl-y:execute(copy_to_clipboard {1})+reload(list_containers $pod_name)" \
+            --bind="ctrl-r:reload(refresh_cache && list_containers $pod_name)" \
             --bind="ctrl-c:abort" \
             --print-query --expect=enter,esc 2>/dev/null) || {
             # fzf was interrupted or aborted - signal full exit
@@ -425,6 +438,8 @@ manage_containers() {
         # Handle exit conditions
         if [[ "$key" == "esc" ]]; then
             # ESC means go back to pod view (normal return)
+            # Return the current query so pod view can restore it
+            echo "$query"
             return 0
         fi
 
@@ -432,6 +447,11 @@ manage_containers() {
         if [[ -n "$selection" && "$key" == "enter" ]]; then
             local container_name=$(echo "$selection" | awk '{print $1}')
             view_logs "$container_name"
+            # After viewing logs, keep the current query for next iteration
+            initial_query="$query"
+        else
+            # Clear initial query after first iteration if no selection was made
+            initial_query=""
         fi
     done
 }
@@ -468,7 +488,7 @@ main() {
     PODS_CACHE="${CACHE_BASE}/pods"
     CONTAINERS_CACHE="${CACHE_BASE}/containers"
 
-    manage_pods
+    manage_pods "" # Start with empty query
 }
 
 main "$@"
