@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 find_lib() {
     local paths=(
         "${SCRIPT_DIR}/lib/build-pod-container-tables"
-        "${HOME}/.local/lib/kselect/build-pod-container-tables"
-        "/usr/local/lib/kselect/build-pod-container-tables"
+        "${HOME}/.local/lib/kzf/build-pod-container-tables"
+        "/usr/local/lib/kzf/build-pod-container-tables"
     )
 
     for path in "${paths[@]}"; do
@@ -437,11 +437,11 @@ export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE
 # Main
 # ============================================================================
 main() {
-    check_dependencies "fzf" "kubectl" "jq"
+    check_dependencies "fzf" "kubectl"
 
     CONTEXT=$(get_current_context) || error_exit "Failed to get current context"
     NAMESPACE=$(get_current_namespace)
-    CACHE_DIR="/tmp/kselect/${CONTEXT}/${NAMESPACE}"
+    CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
     STATE_FILE="${CACHE_DIR}/.state"
 
     # Initialize state
@@ -455,7 +455,7 @@ main() {
         --no-multi \
         --ansi \
         --tiebreak=begin,index \
-        --prompt="FZF> " \
+        --prompt="KZF> " \
         --height=100% \
         --header-lines=3 \
         --bind="enter:execute-silent(dispatch_action enter {1})+reload(display_data)+change-query()" \

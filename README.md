@@ -1,17 +1,22 @@
-# kselect
+# KZF — Fuzzy finder for Kubernetes pods and containers
 
-A lightweight, fast Kubernetes pod and container manager with fuzzy finding
-capabilities. Built as a faster alternative to k9s for quick pod operations and
-log viewing.
+KZF is a lightweight CLI tool to **browse, select, and interact with Kubernetes
+pods and containers** — powered by [fzf](https://github.com/junegunn/fzf) and
+`kubectl`.
 
-## Features
+## Core Features
 
-- **Fast fuzzy search** - Powered by fzf for lightning-fast filtering
-- **Hierarchical navigation** - Browse pods → containers → logs seamlessly
-- **Real-time updates** - Background cache refresh keeps data current
-- **Essential operations** - Exec, describe, delete, logs with keyboard shortcuts
-- **Lightweight** - Minimal dependencies, fast startup
-- **Context aware** - Respects your current kubectl context and namespace
+* Fuzzy search across pods in your current context/namespace
+* Select containers inside pods with instant filtering
+* Run common actions: `exec`, `logs`, `describe`, `delete`
+* Seamless integration with `kubectl` — no extra config
+* Minimal, script-friendly, built for daily workflows
+
+## Why KZF?
+
+If you often switch between pods and containers and want a **fast, interactive
+alternative to writing long kubectl commands**, **KZF** helps you do that with
+fzf-like speed and simplicity.
 
 ## Installation
 
@@ -19,14 +24,13 @@ log viewing.
 
 - `kubectl` - Kubernetes command-line tool
 - `fzf` - Fuzzy finder
-- `jq` - JSON processor
 - `bash` 4.0+
 
 ### Installation
 
 ```bash
-git clone https://github.com/anhpt379/kselect.git
-cd kselect
+git clone https://github.com/anhpt379/kzf.git
+cd kzf
 
 make install
 ```
@@ -36,8 +40,8 @@ make install
 ### Basic Usage
 
 ```bash
-# Launch kselect in current context/namespace
-kselect
+# Launch kzf in current context/namespace
+kzf
 ```
 
 ### Navigation
@@ -67,21 +71,21 @@ kselect
 
 ```bash
 # Cache refresh interval (seconds)
-export KSELECT_CACHE_REFRESH=30
+export KZF_CACHE_REFRESH=30
 
 # Log tail lines
-export KSELECT_LOG_TAIL_LINES=100
+export KZF_LOG_TAIL_LINES=100
 
 # Cache directory
-export KSELECT_CACHE_DIR="/tmp/kselect"
+export KZF_CACHE_DIR="/tmp/kzf"
 ```
 
 ### Debug Mode
 
 ```bash
 # Enable debug output
-export KSELECT_DEBUG=1
-kselect
+export KZF_DEBUG=1
+kzf
 ```
 
 ## Acknowledgments
