@@ -35,7 +35,6 @@ CONTEXT=""
 NAMESPACE=""
 CACHE_DIR=""
 STATE_FILE=""
-FZF_PORT_FILE=""
 BG_REFRESH_PID=""
 LIB_PATH=""
 
@@ -60,7 +59,7 @@ check_dependencies() {
             missing+=("$cmd")
         fi
     done
-    
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo "Error: Missing required commands: ${missing[*]}" >&2
         exit 1
@@ -71,19 +70,57 @@ colorize() {
     local color="$1"
     local text="$2"
     local color_code=""
-    
+
     case "$color" in
-        RED)     color_code="$RED" ;;
-        GREEN)   color_code="$GREEN" ;;
-        YELLOW)  color_code="$YELLOW" ;;
-        CYAN)    color_code="$CYAN" ;;
-        GRAY)    color_code="$GRAY" ;;
-        MAGENTA) color_code="$MAGENTA" ;;
-        WHITE)   color_code="$WHITE" ;;
-        *)       echo "$text"; return ;;
+    RED) color_code="$RED" ;;
+    GREEN) color_code="$GREEN" ;;
+    YELLOW) color_code="$YELLOW" ;;
+    CYAN) color_code="$CYAN" ;;
+    GRAY) color_code="$GRAY" ;;
+    MAGENTA) color_code="$MAGENTA" ;;
+    WHITE) color_code="$WHITE" ;;
+    *)
+        echo "$text"
+        return
+        ;;
     esac
-    
+
     echo -e "${color_code}${text}${RESET}"
+}
+
+highlight_logs() {
+    awk 'BEGIN {
+        # Color codes
+        colors[0]=31; colors[1]=32; colors[2]=33; colors[3]=34; colors[4]=35; colors[5]=36
+        colors[6]=91; colors[7]=92; colors[8]=93; colors[9]=94; colors[10]=95; colors[11]=96
+        color_count = 12
+        next_color = 0
+    }
+    {
+        # Match pattern: [pod/container] timestamp message
+        if (match($0, /^\[([^]]+)\] ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z) (.*)$/, parts)) {
+            full_container = parts[1]
+            timestamp = parts[2]
+            message = parts[3]
+
+            # Extract just the container name from pod/pod-name/container-name
+            split(full_container, container_parts, "/")
+            container = container_parts[length(container_parts)]
+
+            # Assign color to container if not seen before
+            if (!(container in container_colors)) {
+                container_colors[container] = colors[next_color]
+                next_color = (next_color + 1) % color_count
+            }
+
+            # Print with colors: timestamp first, then container, then message
+            printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n",
+                timestamp, container_colors[container], container, message
+        } else {
+            # Print non-matching lines as-is
+            print $0
+        }
+    }'
 }
 
 # ============================================================================
@@ -99,15 +136,23 @@ get_current_namespace() {
     echo "${namespace:-default}"
 }
 
+get_contexts() {
+    kubectl config get-contexts -o name | sort
+}
+
 # ============================================================================
 # State Management
 # ============================================================================
 save_state() {
     local mode="$1"
     local pod_name="${2:-}"
-    cat > "$STATE_FILE" <<EOF
+    cat >"$STATE_FILE" <<EOF
 MODE=$mode
 POD_NAME=$pod_name
+CONTEXT=$CONTEXT
+NAMESPACE=$NAMESPACE
+CACHE_DIR=/tmp/kzf/${CONTEXT}/${NAMESPACE}
+FZF_PORT=${FZF_PORT:-}
 EOF
 }
 
@@ -121,10 +166,12 @@ load_state() {
 # Cache Management
 # ============================================================================
 refresh_cache() {
+    load_state
+
     mkdir -p "$CACHE_DIR"
     local raw_data_file="${CACHE_DIR}/raw_data.json"
     local temp_file=$(mktemp)
-    
+
     if kubectl get pods -o json >"$temp_file" 2>&1; then
         mv "$temp_file" "$raw_data_file"
         "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
@@ -141,13 +188,11 @@ refresh_cache() {
 start_background_refresh() {
     while true; do
         refresh_cache
-
+        load_state
+        
         # Trigger FZF reload if port file exists
-        if [[ -f "$FZF_PORT_FILE" ]]; then
-            local port=$(cat "$FZF_PORT_FILE" 2>/dev/null)
-            if [[ -n "$port" ]]; then
-                curl -XPOST localhost:$port -d 'reload(display_data)'
-            fi
+        if [[ -n "$FZF_PORT" ]]; then
+            curl -XPOST localhost:$FZF_PORT -d 'reload(display_data)'
         fi
         sleep "$CACHE_REFRESH_INTERVAL"
     done &
@@ -172,13 +217,18 @@ show_pod_header() {
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "ESC") go up  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "ESC") go back  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
+}
+
+show_context_header() {
+    echo "⎈ $(colorize YELLOW "$CONTEXT")"
+    echo "$(colorize MAGENTA "ENTER") select context  $(colorize MAGENTA "ESC") go back  $(colorize MAGENTA "CTRL-Y") copy name"
 }
 
 list_pods() {
     local pods_file="${CACHE_DIR}/pods"
     [[ ! -f "$pods_file" ]] && refresh_cache
-    
+
     show_pod_header
     cat "$pods_file"
 }
@@ -186,17 +236,26 @@ list_pods() {
 list_containers() {
     local containers_file="${CACHE_DIR}/containers"
     [[ ! -f "$containers_file" ]] && refresh_cache
-    
+
     show_container_header
     head -1 "$containers_file" | awk '{print substr($0, index($0, $2))}'
     grep "${POD_NAME}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
 }
 
+list_contexts() {
+    show_context_header
+    echo "NAME"
+    get_contexts | while read -r ctx; do
+        [[ "$ctx" == "$CONTEXT" ]] && echo "$ctx $(colorize GREEN "*")" || echo "$ctx"
+    done
+}
+
 display_data() {
     load_state
     case "$MODE" in
-        pods)       list_pods ;;
-        containers) list_containers ;;
+    pods) list_pods ;;
+    containers) list_containers ;;
+    contexts) list_contexts ;;
     esac
 }
 
@@ -206,7 +265,7 @@ display_data() {
 copy_to_clipboard() {
     local text="$1"
     local clipboard_cmd=""
-    
+
     if command -v pbcopy &>/dev/null; then
         clipboard_cmd="pbcopy"
     elif command -v xclip &>/dev/null; then
@@ -217,7 +276,7 @@ copy_to_clipboard() {
         echo "No clipboard utility found"
         return 1
     fi
-    
+
     echo "$text" | $clipboard_cmd
     echo "Copied '$text' to clipboard"
 }
@@ -226,13 +285,13 @@ exec_shell() {
     local pod="$1"
     local container="${2:-}"
     local exec_cmd="kubectl exec -it $pod"
-    
+
     [[ -n "$container" ]] && exec_cmd+=" -c $container"
     exec_cmd+=" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
-    
+
     echo "====================================================================="
     echo "Executing into ${container:+container: $container in }pod: $pod"
-    
+
     if eval "$exec_cmd"; then
         return 0
     else
@@ -253,15 +312,15 @@ delete_pod() {
 describe_resource() {
     local resource_type="$1"
     local resource_name="$2"
-    
+
     echo "====================================================================="
     echo "Describing $resource_type: $resource_name"
-    
+
     if [[ "$resource_type" == "pod" ]]; then
         kubectl describe pod "$resource_name" | less
     else
         load_state
-        kubectl describe pod "$POD_NAME" | \
+        kubectl describe pod "$POD_NAME" |
             awk -v container="$resource_name" '
                 /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
                 in_containers && $0 ~ "^  " container ":$" {
@@ -276,39 +335,21 @@ describe_resource() {
     fi
 }
 
-highlight_logs() {
-    awk 'BEGIN {
-        # Color codes
-        colors[0]=31; colors[1]=32; colors[2]=33; colors[3]=34; colors[4]=35; colors[5]=36
-        colors[6]=91; colors[7]=92; colors[8]=93; colors[9]=94; colors[10]=95; colors[11]=96
-        color_count = 12
-        next_color = 0
-    }
-    {
-        # Match pattern: [pod/container] timestamp message
-        if (match($0, /^\[([^]]+)\] ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z) (.*)$/, parts)) {
-            full_container = parts[1]
-            timestamp = parts[2]
-            message = parts[3]
-            
-            # Extract just the container name from pod/pod-name/container-name
-            split(full_container, container_parts, "/")
-            container = container_parts[length(container_parts)]
-            
-            # Assign color to container if not seen before
-            if (!(container in container_colors)) {
-                container_colors[container] = colors[next_color]
-                next_color = (next_color + 1) % color_count
-            }
-            
-            # Print with colors: timestamp first, then container, then message
-            printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n", 
-                timestamp, container_colors[container], container, message
-        } else {
-            # Print non-matching lines as-is
-            print $0
-        }
-    }'
+switch_context() {
+    local new_context="$1"
+
+    # Remove trailing marker if present
+    new_context="${new_context% \*}"
+
+    echo "Switching to context: $new_context"
+    if kubectl config use-context "$new_context" >/dev/null 2>&1; then
+        # Update global variables
+        export CONTEXT="$new_context"
+        export NAMESPACE=$(get_current_namespace)
+        export CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
+
+        save_state "pods"
+    fi
 }
 
 view_logs() {
@@ -333,46 +374,57 @@ dispatch() {
     local action="$1"
     local target="$2"
     load_state
-    
+
     case "$action" in
-        enter)
-            if [[ "$MODE" == "pods" ]]; then
-                save_state "containers" "$target"
-            fi
-            ;;
-        exec)
-            if [[ "$MODE" == "pods" ]]; then
-                exec_shell "$target"
-            else
-                exec_shell "$POD_NAME" "$target"
-            fi
-            ;;
-        describe)
-            if [[ "$MODE" == "pods" ]]; then
-                describe_resource "pod" "$target"
-            else
-                describe_resource "container" "$target"
-            fi
-            ;;
-        delete)
-            [[ "$MODE" == "pods" ]] && delete_pod "$target" && refresh_cache
-            ;;
-        copy)
-            copy_to_clipboard "$target"
-            ;;
-        logs)
-            if [[ "$MODE" == "pods" ]]; then
-                view_logs "$target"
-            else
-                view_logs "$POD_NAME" "$target"
-            fi
-            ;;
-        refresh)
+    enter)
+        if [[ "$MODE" == "pods" ]]; then
+            save_state "containers" "$target"
+        elif [[ "$MODE" == "contexts" ]]; then
+            save_state "pods"
+            switch_context "$target"
             refresh_cache
-            ;;
-        back)
-            [[ "$MODE" == "containers" ]] && save_state "pods"
-            ;;
+        fi
+        ;;
+    exec)
+        if [[ "$MODE" == "pods" ]]; then
+            exec_shell "$target"
+        else
+            exec_shell "$POD_NAME" "$target"
+        fi
+        ;;
+    describe)
+        if [[ "$MODE" == "pods" ]]; then
+            describe_resource "pod" "$target"
+        else
+            describe_resource "container" "$target"
+        fi
+        ;;
+    delete)
+        [[ "$MODE" == "pods" ]] && delete_pod "$target" && refresh_cache
+        ;;
+    copy)
+        copy_to_clipboard "$target"
+        ;;
+    logs)
+        if [[ "$MODE" == "pods" ]]; then
+            view_logs "$target"
+        else
+            view_logs "$POD_NAME" "$target"
+        fi
+        ;;
+    refresh)
+        refresh_cache
+        ;;
+    back)
+        if [[ "$MODE" == "containers" ]]; then
+            save_state "pods"
+        elif [[ "$MODE" == "contexts" ]]; then
+            save_state "pods"
+        fi
+        ;;
+    contexts)
+        save_state "contexts"
+        ;;
     esac
 }
 
@@ -382,45 +434,46 @@ dispatch() {
 cleanup() {
     stop_background_refresh
     rm -f "$STATE_FILE"
-    rm -f "$FZF_PORT_FILE"
 }
 
 # ============================================================================
 # Export Functions for FZF
 # ============================================================================
-export -f colorize load_state save_state
-export -f show_pod_header show_container_header
-export -f list_pods list_containers refresh_cache display_data
-export -f copy_to_clipboard exec_shell delete_pod describe_resource
-export -f view_logs highlight_logs dispatch
+export -f colorize highlight_logs load_state save_state
+export -f show_pod_header show_container_header show_context_header
+export -f list_pods list_containers list_contexts
+export -f refresh_cache display_data dispatch
+export -f copy_to_clipboard exec_shell delete_pod describe_resource view_logs
+export -f get_contexts switch_context get_current_namespace
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
-export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE FZF_PORT_FILE MODE POD_NAME
+export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE MODE POD_NAME
 
 # Setup
 check_dependencies "kubectl" "fzf" "awk" "curl"
 LIB_PATH=$(find_library)
 
 # Initialize environment
-CONTEXT=$(get_current_context) || { echo "Failed to get current context" >&2; exit 1; }
+CONTEXT=$(get_current_context) || {
+    echo "Failed to get current context" >&2
+    exit 1
+}
 NAMESPACE=$(get_current_namespace)
 CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
-STATE_FILE="${CACHE_DIR}/.state"
-FZF_PORT_FILE="${CACHE_DIR}/.fzf-port"
+STATE_FILE="/tmp/kzf/.state"
 
 # Initialize state
-mkdir -p "$CACHE_DIR"
 save_state "pods"
 
 # Start UI if script is executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Setup cleanup
     trap cleanup EXIT INT TERM
-    
+
     # Start background refresh
     start_background_refresh
-    
+
     # Run FZF interface
     # Note: CTRL-L is mapped to END in my terminal
     display_data | fzf \
@@ -431,14 +484,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --height=100% \
         --header-lines=3 \
         --listen \
-        --bind='start:execute-silent:echo $FZF_PORT > $FZF_PORT_FILE' \
+        --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
         --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || echo 'change-prompt(Containers> )+execute-silent(dispatch enter {1})+reload(display_data)+clear-query'" \
         --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
         --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
         --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
         --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
-        --bind="ctrl-s:execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
+        --bind="ctrl-s:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
         --bind="end:execute(dispatch logs {1})+reload(display_data)" \
         --bind="esc:transform:grep -q MODE=pods $STATE_FILE && echo abort || echo 'change-prompt(Pods> )+execute-silent(dispatch back)+reload(display_data)+clear-query'"
 fi
