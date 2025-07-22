@@ -157,13 +157,13 @@ stop_background_refresh() {
 # Display Functions
 # ============================================================================
 show_pod_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") to list containers, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-L") to view logs, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-K") to delete, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
+    echo "$(colorize MAGENTA "ENTER") list containers  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
 }
 
 show_container_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE") | $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ESC") to go up, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-L") to view logs, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "ESC") go up  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
 }
 
 list_pods() {
@@ -419,7 +419,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --prompt="KZF> " \
         --height=100% \
         --header-lines=3 \
-        --bind="enter:execute-silent(dispatch enter {1})+reload(display_data)+change-query()" \
+        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || echo 'execute-silent(dispatch enter {1})+reload(display_data)+change-query()'" \
         --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
         --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
