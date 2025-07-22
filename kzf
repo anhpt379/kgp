@@ -419,13 +419,13 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --prompt="KZF> " \
         --height=100% \
         --header-lines=3 \
-        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || echo 'execute-silent(dispatch enter {1})+reload(display_data)+change-query()'" \
+        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || echo 'execute-silent(dispatch enter {1})+reload(display_data)+clear-query'" \
         --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
         --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
         --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
         --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
         --bind="end:execute(dispatch logs {1})+reload(display_data)" \
-        --bind="esc:transform:grep -q MODE=pods $STATE_FILE && echo abort || echo 'execute-silent(dispatch back)+reload(display_data)+change-query()'"
+        --bind="esc:transform:grep -q MODE=pods $STATE_FILE && echo abort || echo 'execute-silent(dispatch back)+reload(display_data)+clear-query'"
 fi
 
