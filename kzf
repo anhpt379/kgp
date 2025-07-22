@@ -140,7 +140,6 @@ refresh_cache() {
 # ============================================================================
 start_background_refresh() {
     while true; do
-        sleep "$CACHE_REFRESH_INTERVAL"
         refresh_cache
 
         # Trigger FZF reload if port file exists
@@ -150,6 +149,7 @@ start_background_refresh() {
                 curl -XPOST localhost:$port -d 'reload(display_data)'
             fi
         fi
+        sleep "$CACHE_REFRESH_INTERVAL"
     done &
     BG_REFRESH_PID=$!
 }
