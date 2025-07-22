@@ -268,28 +268,52 @@ describe_resource() {
 }
 
 highlight_logs() {
-    awk -v red="$RED" -v yellow="$YELLOW" -v gray="$GRAY" -v reset="$RESET" '
-        {
-            printf "%s%s%s ", gray, $1, reset
-            msg = substr($0, index($0, $2))
-            gsub(/ERROR/, red "ERROR" reset, msg)
-            gsub(/WARN/, yellow "WARN" reset, msg)
-            print msg
-        }'
+    awk 'BEGIN {
+        # Color codes
+        colors[0]=31; colors[1]=32; colors[2]=33; colors[3]=34; colors[4]=35; colors[5]=36
+        colors[6]=91; colors[7]=92; colors[8]=93; colors[9]=94; colors[10]=95; colors[11]=96
+        color_count = 12
+        next_color = 0
+    }
+    {
+        # Match pattern: [pod/container] timestamp message
+        if (match($0, /^\[([^]]+)\] ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z) (.*)$/, parts)) {
+            full_container = parts[1]
+            timestamp = parts[2]
+            message = parts[3]
+            
+            # Extract just the container name from pod/pod-name/container-name
+            split(full_container, container_parts, "/")
+            container = container_parts[length(container_parts)]
+            
+            # Assign color to container if not seen before
+            if (!(container in container_colors)) {
+                container_colors[container] = colors[next_color]
+                next_color = (next_color + 1) % color_count
+            }
+            
+            # Print with colors: timestamp first, then container, then message
+            printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n", 
+                timestamp, container_colors[container], container, message
+        } else {
+            # Print non-matching lines as-is
+            print $0
+        }
+    }'
 }
 
 view_logs() {
     local pod="$1"
     local container="${2:-}"
-    local args=("$pod" "-f")
+    local args=("$pod" "--follow" "--prefix" "--timestamps")
 
-    [[ -n "$container" ]] && args+=("-c" "$container")
+    [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
-    if kubectl logs "${args[@]}" 2>&1 | (less || true); then
+    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less || true); then
         return 0
     else
         echo "Falling back to --previous logs..." >&2
-        kubectl logs "${args[@]}" --previous 2>&1 | (less || true)
+        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less || true)
     fi
 }
 
