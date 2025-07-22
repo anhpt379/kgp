@@ -1,6 +1,6 @@
-# KZF — Fuzzy finder for Kubernetes pods and containers
+# KGP — Fuzzy finder for Kubernetes pods and containers
 
-KZF is a lightweight CLI tool to **browse, select, and interact with Kubernetes
+KGP is a lightweight CLI tool to **browse, select, and interact with Kubernetes
 pods and containers** — powered by [fzf](https://github.com/junegunn/fzf) and
 `kubectl`.
 
@@ -12,10 +12,10 @@ pods and containers** — powered by [fzf](https://github.com/junegunn/fzf) and
 * Seamless integration with `kubectl` — no extra config
 * Minimal, script-friendly, built for daily workflows
 
-## Why KZF?
+## Why KGP?
 
 If you often switch between pods and containers and want a **fast, interactive
-alternative to writing long kubectl commands**, **KZF** helps you do that with
+alternative to writing long kubectl commands**, **KGP** helps you do that with
 fzf-like speed and simplicity.
 
 ## Installation
@@ -29,8 +29,8 @@ fzf-like speed and simplicity.
 ### Installation
 
 ```bash
-git clone https://github.com/anhpt379/kzf.git
-cd kzf
+git clone https://github.com/anhpt379/kgp.git
+cd kgp
 
 make install
 ```
@@ -40,8 +40,8 @@ make install
 ### Basic Usage
 
 ```bash
-# Launch kzf in current context/namespace
-kzf
+# Launch kgp in current context/namespace
+kgp
 ```
 
 ### Navigation
@@ -71,21 +71,21 @@ kzf
 
 ```bash
 # Cache refresh interval (seconds)
-export KZF_CACHE_REFRESH=30
+export KGP_CACHE_REFRESH=30
 
 # Log tail lines
-export KZF_LOG_TAIL_LINES=100
+export KGP_LOG_TAIL_LINES=100
 
 # Cache directory
-export KZF_CACHE_DIR="/tmp/kzf"
+export KGP_CACHE_DIR="/tmp/kgp"
 ```
 
 ### Debug Mode
 
 ```bash
 # Enable debug output
-export KZF_DEBUG=1
-kzf
+export KGP_DEBUG=1
+kgp
 ```
 
 ## Acknowledgments

@@ -24,8 +24,8 @@ readonly RESET='\033[0m'
 # Library paths
 readonly LIB_SEARCH_PATHS=(
     "${SCRIPT_DIR}/lib/build-pod-container-tables"
-    "${HOME}/.local/lib/kzf/build-pod-container-tables"
-    "/usr/local/lib/kzf/build-pod-container-tables"
+    "${HOME}/.local/lib/kgp/build-pod-container-tables"
+    "/usr/local/lib/kgp/build-pod-container-tables"
 )
 
 # ============================================================================
@@ -151,7 +151,7 @@ MODE=$mode
 POD_NAME=$pod_name
 CONTEXT=$CONTEXT
 NAMESPACE=$NAMESPACE
-CACHE_DIR=/tmp/kzf/${CONTEXT}/${NAMESPACE}
+CACHE_DIR=/tmp/kgp/${CONTEXT}/${NAMESPACE}
 FZF_PORT=${FZF_PORT:-}
 EOF
 }
@@ -346,7 +346,7 @@ switch_context() {
         # Update global variables
         export CONTEXT="$new_context"
         export NAMESPACE=$(get_current_namespace)
-        export CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
+        export CACHE_DIR="/tmp/kgp/${CONTEXT}/${NAMESPACE}"
 
         save_state "pods"
     fi
@@ -460,8 +460,8 @@ CONTEXT=$(get_current_context) || {
     exit 1
 }
 NAMESPACE=$(get_current_namespace)
-CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
-STATE_FILE="/tmp/kzf/.state"
+CACHE_DIR="/tmp/kgp/${CONTEXT}/${NAMESPACE}"
+STATE_FILE="/tmp/kgp/.state"
 
 # Initialize state
 save_state "pods"
