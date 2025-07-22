@@ -291,16 +291,12 @@ def main():
 
     # Generate pods table
     pod_data = build_pods_table(data)
-    pod_headers = [
-        colorize("WHITE", h) for h in ["NAME", "READY", "STATUS", "RESTARTS", "AGE"]
-    ]
+    pod_headers = ["NAME", "READY", "STATUS", "RESTARTS", "AGE"]
     write_table(pod_data, pod_headers, os.path.join(args.output_dir, "pods"))
 
     # Generate containers table
     container_data = build_containers_table(data)
-    container_headers = [
-        colorize("WHITE", h) for h in ["POD", "NAME", "READY", "STATUS", "IMAGE"]
-    ]
+    container_headers = ["POD", "NAME", "READY", "STATUS", "IMAGE"]
     write_table(
         container_data, container_headers, os.path.join(args.output_dir, "containers")
     )
