@@ -158,12 +158,12 @@ stop_background_refresh() {
 # ============================================================================
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") to list containers, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-K") to delete, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
+    echo "$(colorize MAGENTA "ENTER") to list containers, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-L") to view logs, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-K") to delete, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE") | $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER") to view logs, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "ESC") to go up"
+    echo "$(colorize MAGENTA "ESC") to go up, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-L") to view logs, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
 }
 
 list_pods() {
@@ -279,31 +279,17 @@ highlight_logs() {
 }
 
 view_logs() {
-    local container="$1"
-    load_state
-    
-    echo "====================================================================="
-    echo "Viewing logs for container: $container in pod: $POD_NAME"
-    
-    local log_file=$(mktemp)
-    trap "rm -f $log_file" EXIT INT TERM
-    
-    local kubectl_cmd="kubectl logs $POD_NAME -c $container --timestamps --follow"
-    
-    {
-        if ! $kubectl_cmd 2>&1 | highlight_logs; then
-            kubectl logs "$POD_NAME" -c "$container" --timestamps --follow --previous 2>&1 | highlight_logs
-        fi
-    } >"$log_file" &
-    
-    local pid=$!
-    sleep 0.2
-    
-    if kill -0 "$pid" 2>/dev/null; then
-        less "$log_file"
+    local pod="$1"
+    local container="${2:-}"
+    local args=("$pod" "-f")
+
+    [[ -n "$container" ]] && args+=("-c" "$container")
+
+    if kubectl logs "${args[@]}" 2>&1 | (less || true); then
+        return 0
     else
-        echo "Error: Failed to start log streaming"
-        return 1
+        echo "Falling back to --previous logs..." >&2
+        kubectl logs "${args[@]}" --previous 2>&1 | (less || true)
     fi
 }
 
@@ -319,8 +305,6 @@ dispatch() {
         enter)
             if [[ "$MODE" == "pods" ]]; then
                 save_state "containers" "$target"
-            else
-                view_logs "$target"
             fi
             ;;
         exec)
@@ -342,6 +326,13 @@ dispatch() {
             ;;
         copy)
             copy_to_clipboard "$target"
+            ;;
+        logs)
+            if [[ "$MODE" == "pods" ]]; then
+                view_logs "$target"
+            else
+                view_logs "$POD_NAME" "$target"
+            fi
             ;;
         refresh)
             refresh_cache
@@ -398,6 +389,7 @@ main() {
     start_background_refresh
     
     # Run FZF interface
+    # Note: CTRL-L is mapped to END in my terminal
     display_data | fzf \
         --no-multi \
         --ansi \
@@ -411,6 +403,7 @@ main() {
         --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
         --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
         --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
+        --bind="end:execute(dispatch logs {1})+reload(display_data)" \
         --bind="esc:execute-silent(dispatch back)+reload(display_data)+change-query()"
 }
 
