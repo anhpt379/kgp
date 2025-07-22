@@ -364,24 +364,22 @@ export -f view_logs highlight_logs dispatch
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
 export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE MODE POD_NAME
 
-# ============================================================================
-# Main
-# ============================================================================
-main() {
-    # Setup
-    check_dependencies "fzf" "kubectl"
-    LIB_PATH=$(find_library)
-    
-    # Initialize environment
-    CONTEXT=$(get_current_context) || { echo "Failed to get current context" >&2; exit 1; }
-    NAMESPACE=$(get_current_namespace)
-    CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
-    STATE_FILE="${CACHE_DIR}/.state"
-    
-    # Initialize state
-    mkdir -p "$CACHE_DIR"
-    save_state "pods"
-    
+# Setup
+check_dependencies "fzf" "kubectl"
+LIB_PATH=$(find_library)
+
+# Initialize environment
+CONTEXT=$(get_current_context) || { echo "Failed to get current context" >&2; exit 1; }
+NAMESPACE=$(get_current_namespace)
+CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
+STATE_FILE="${CACHE_DIR}/.state"
+
+# Initialize state
+mkdir -p "$CACHE_DIR"
+save_state "pods"
+
+# Start UI if script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Setup cleanup
     trap cleanup EXIT INT TERM
     
@@ -404,11 +402,6 @@ main() {
         --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
         --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
         --bind="end:execute(dispatch logs {1})+reload(display_data)" \
-        --bind="esc:execute-silent(dispatch back)+reload(display_data)+change-query()"
-}
-
-# Run main if script is executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
+        --bind="esc:transform:grep -q MODE=pods $STATE_FILE && echo abort || echo 'execute-silent(dispatch back)+reload(display_data)+change-query()'"
 fi
 
