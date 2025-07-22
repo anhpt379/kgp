@@ -458,13 +458,13 @@ main() {
         --prompt="FZF> " \
         --height=100% \
         --header-lines=3 \
-        --bind="enter:execute-silent(dispatch_action enter {1})+reload(display_data)" \
+        --bind="enter:execute-silent(dispatch_action enter {1})+reload(display_data)+change-query()" \
         --bind="ctrl-e:execute(dispatch_action exec {1})+reload(display_data)" \
         --bind="ctrl-d:execute(dispatch_action describe {1})+reload(display_data)" \
         --bind="ctrl-k:execute(dispatch_action delete {1})+reload(display_data)" \
         --bind="ctrl-y:execute-silent(dispatch_action copy {1})+reload(display_data)" \
         --bind="ctrl-r:execute-silent(dispatch_action refresh)+reload(display_data)" \
-        --bind="esc:execute-silent(dispatch_action back)+reload(display_data)" \
+        --bind="esc:execute-silent(dispatch_action back)+reload(display_data)+change-query()" \
         --bind="ctrl-q:abort"
 }
 
