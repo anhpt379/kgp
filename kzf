@@ -4,32 +4,14 @@
 # ============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Find the `build-pod-container-tables` library
-find_lib() {
-    local paths=(
-        "${SCRIPT_DIR}/lib/build-pod-container-tables"
-        "${HOME}/.local/lib/kzf/build-pod-container-tables"
-        "/usr/local/lib/kzf/build-pod-container-tables"
-    )
-
-    for path in "${paths[@]}"; do
-        if [[ -f "$path" ]]; then
-            echo "$path"
-            return 0
-        fi
-    done
-
-    echo "Error: Cannot find build-pod-container-tables library" >&2
-    exit 1
-}
-
-LIB_PATH=$(find_lib)
-
 # ============================================================================
-# Configuration
+# Constants
 # ============================================================================
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly CACHE_REFRESH_INTERVAL=30
+readonly LOG_TAIL_LINES=100
+
+# Colors
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
@@ -39,18 +21,72 @@ readonly MAGENTA='\033[0;35m'
 readonly WHITE='\033[0;37m'
 readonly RESET='\033[0m'
 
-readonly CACHE_REFRESH_INTERVAL=30
-readonly LOG_TAIL_LINES=100
-
-# Global state
-CONTEXT=""
-NAMESPACE=""
-BG_REFRESH_PID=""
-CACHE_DIR=""
-STATE_FILE=""
+# Library paths
+readonly LIB_SEARCH_PATHS=(
+    "${SCRIPT_DIR}/lib/build-pod-container-tables"
+    "${HOME}/.local/lib/kzf/build-pod-container-tables"
+    "/usr/local/lib/kzf/build-pod-container-tables"
+)
 
 # ============================================================================
-# Utility Functions
+# Global Variables
+# ============================================================================
+CONTEXT=""
+NAMESPACE=""
+CACHE_DIR=""
+STATE_FILE=""
+BG_REFRESH_PID=""
+LIB_PATH=""
+
+# ============================================================================
+# Core Functions
+# ============================================================================
+find_library() {
+    for path in "${LIB_SEARCH_PATHS[@]}"; do
+        if [[ -f "$path" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    echo "Error: Cannot find build-pod-container-tables library" >&2
+    exit 1
+}
+
+check_dependencies() {
+    local missing=()
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing+=("$cmd")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "Error: Missing required commands: ${missing[*]}" >&2
+        exit 1
+    fi
+}
+
+colorize() {
+    local color="$1"
+    local text="$2"
+    local color_code=""
+    
+    case "$color" in
+        RED)     color_code="$RED" ;;
+        GREEN)   color_code="$GREEN" ;;
+        YELLOW)  color_code="$YELLOW" ;;
+        CYAN)    color_code="$CYAN" ;;
+        GRAY)    color_code="$GRAY" ;;
+        MAGENTA) color_code="$MAGENTA" ;;
+        WHITE)   color_code="$WHITE" ;;
+        *)       echo "$text"; return ;;
+    esac
+    
+    echo -e "${color_code}${text}${RESET}"
+}
+
+# ============================================================================
+# Kubernetes Functions
 # ============================================================================
 get_current_context() {
     kubectl config current-context
@@ -62,96 +98,50 @@ get_current_namespace() {
     echo "${namespace:-default}"
 }
 
-error_exit() {
-    echo "Error: $1" >&2
-    exit 1
-}
-
-colorize() {
-    local color="$1"
-    local text="$2"
-    case "$color" in
-    RED) echo -e "${RED}${text}${RESET}" ;;
-    GREEN) echo -e "${GREEN}${text}${RESET}" ;;
-    YELLOW) echo -e "${YELLOW}${text}${RESET}" ;;
-    CYAN) echo -e "${CYAN}${text}${RESET}" ;;
-    GRAY) echo -e "${GRAY}${text}${RESET}" ;;
-    MAGENTA) echo -e "${MAGENTA}${text}${RESET}" ;;
-    WHITE) echo -e "${WHITE}${text}${RESET}" ;;
-    *) echo "$text" ;;
-    esac
-}
-
-check_dependencies() {
-    local deps=("$@")
-    for dep in "${deps[@]}"; do
-        command -v "$dep" >/dev/null 2>&1 || error_exit "$dep is required but not installed"
-    done
-}
-
 # ============================================================================
 # State Management
 # ============================================================================
 save_state() {
     local mode="$1"
     local pod_name="${2:-}"
-    echo "MODE=$mode" >"$STATE_FILE"
-    echo "POD_NAME=$pod_name" >>"$STATE_FILE"
+    cat > "$STATE_FILE" <<EOF
+MODE=$mode
+POD_NAME=$pod_name
+EOF
 }
 
 load_state() {
     if [[ -f "$STATE_FILE" ]]; then
         source "$STATE_FILE"
-        echo "${MODE:-pods}|${POD_NAME:-}"
-    else
-        echo "pods|"
     fi
 }
 
 # ============================================================================
-# Cache Functions - Simplified
+# Cache Management
 # ============================================================================
-get_cache_file() {
-    local file_type="$1"
-    echo "${CACHE_DIR}/${file_type}"
-}
-
 refresh_cache() {
     mkdir -p "$CACHE_DIR"
-
-    local raw_data_file=$(get_cache_file "raw_data.json")
+    local raw_data_file="${CACHE_DIR}/raw_data.json"
     local temp_file=$(mktemp)
-
-    # Single kubectl call to get all pod data with containers
-    if ! kubectl get pods -o json >"$temp_file" 2>&1; then
+    
+    if kubectl get pods -o json >"$temp_file" 2>&1; then
+        mv "$temp_file" "$raw_data_file"
+        "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
+    else
         echo "Failed to fetch pod data" >&2
         rm -f "$temp_file"
         return 1
     fi
-
-    mv "$temp_file" "$raw_data_file"
-
-    # Process the data into different views
-    if ! "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"; then
-        echo "Failed to process pod data" >&2
-        return 1
-    fi
-
-    return 0
 }
 
 # ============================================================================
 # Background Refresh
 # ============================================================================
-background_refresh() {
+start_background_refresh() {
     while true; do
         sleep "$CACHE_REFRESH_INTERVAL"
         refresh_cache
-    done
-}
-
-start_background_refresh() {
-    background_refresh &
+    done &
     BG_REFRESH_PID=$!
 }
 
@@ -163,59 +153,42 @@ stop_background_refresh() {
     fi
 }
 
-cleanup() {
-    stop_background_refresh
-    rm -f "$STATE_FILE"
-}
-
-trap cleanup EXIT INT TERM
-
 # ============================================================================
 # Display Functions
 # ============================================================================
-list_pods() {
-    local pods_file=$(get_cache_file "pods")
-
-    if [[ ! -f "$pods_file" ]]; then
-        refresh_cache
-    fi
-
+show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") to list containers, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-K") to delete, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh, $(colorize MAGENTA "CTRL-Q") to quit"
+    echo "$(colorize MAGENTA "ENTER") to list containers, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "CTRL-K") to delete, $(colorize MAGENTA "CTRL-Y") to copy name, $(colorize MAGENTA "CTRL-R") to refresh"
+}
 
+show_container_header() {
+    echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE") | $(colorize YELLOW "$POD_NAME")"
+    echo "$(colorize MAGENTA "ENTER") to view logs, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "ESC") to go up"
+}
+
+list_pods() {
+    local pods_file="${CACHE_DIR}/pods"
+    [[ ! -f "$pods_file" ]] && refresh_cache
+    
+    show_pod_header
     cat "$pods_file"
 }
 
 list_containers() {
-    local pod_name="$1"
-    local containers_file=$(get_cache_file "containers")
-
-    if [[ ! -f "$containers_file" ]]; then
-        refresh_cache
-    fi
-
-    # Header
-    echo "⎈ $(colorize YELLOW "$CONTEXT") | $(colorize YELLOW "$NAMESPACE") | $(colorize YELLOW "$pod_name")"
-    echo "$(colorize MAGENTA "ENTER") to view logs, $(colorize MAGENTA "CTRL-E") to exec, $(colorize MAGENTA "CTRL-D") to describe, $(colorize MAGENTA "ESC") to go up, $(colorize MAGENTA "CTRL-Q") to quit"
+    local containers_file="${CACHE_DIR}/containers"
+    [[ ! -f "$containers_file" ]] && refresh_cache
+    
+    show_container_header
     head -1 "$containers_file" | awk '{print substr($0, index($0, $2))}'
-
-    # Containers
-    grep "${pod_name}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
+    grep "${POD_NAME}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
 }
 
-# ============================================================================
-# FZF Display Functions
-# ============================================================================
 display_data() {
-    local state=$(load_state)
-    local mode=$(echo "$state" | cut -d'|' -f1)
-    local pod_name=$(echo "$state" | cut -d'|' -f2)
-
-    if [[ "$mode" == "pods" ]]; then
-        list_pods
-    elif [[ "$mode" == "containers" ]]; then
-        list_containers "$pod_name"
-    fi
+    load_state
+    case "$MODE" in
+        pods)       list_pods ;;
+        containers) list_containers ;;
+    esac
 }
 
 # ============================================================================
@@ -223,45 +196,38 @@ display_data() {
 # ============================================================================
 copy_to_clipboard() {
     local text="$1"
+    local clipboard_cmd=""
+    
     if command -v pbcopy &>/dev/null; then
-        echo "$text" | pbcopy
-        echo "Copied '$text' to clipboard"
+        clipboard_cmd="pbcopy"
     elif command -v xclip &>/dev/null; then
-        echo "$text" | xclip -selection clipboard
-        echo "Copied '$text' to clipboard"
+        clipboard_cmd="xclip -selection clipboard"
     elif command -v wl-copy &>/dev/null; then
-        echo "$text" | wl-copy
-        echo "Copied '$text' to clipboard"
+        clipboard_cmd="wl-copy"
     else
-        echo "No clipboard utility found (pbcopy, xclip, or wl-copy)"
+        echo "No clipboard utility found"
         return 1
     fi
+    
+    echo "$text" | $clipboard_cmd
+    echo "Copied '$text' to clipboard"
 }
 
-exec_into_pod() {
+exec_shell() {
     local pod="$1"
+    local container="${2:-}"
+    local exec_cmd="kubectl exec -it $pod"
+    
+    [[ -n "$container" ]] && exec_cmd+=" -c $container"
+    exec_cmd+=" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
+    
     echo "====================================================================="
-    echo "Executing into pod: $pod"
-    if kubectl exec -it "$pod" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
+    echo "Executing into ${container:+container: $container in }pod: $pod"
+    
+    if eval "$exec_cmd"; then
         return 0
     else
-        echo "Failed to exec into pod: $pod"
-        echo "Press any key to continue..."
-        read -n 1 -s
-        return 1
-    fi
-}
-
-exec_into_container() {
-    local container="$1"
-    local state=$(load_state)
-    local pod_name=$(echo "$state" | cut -d'|' -f2)
-    echo "====================================================================="
-    echo "Executing into container: $container in pod: $pod_name"
-    if kubectl exec -it "$pod_name" -c "$container" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'; then
-        return 0
-    else
-        echo "Failed to exec into container: $container in pod: $pod_name"
+        echo "Failed to exec into ${container:+container: $container in }pod: $pod"
         echo "Press any key to continue..."
         read -n 1 -s
         return 1
@@ -275,182 +241,163 @@ delete_pod() {
     kubectl delete pod "$pod"
 }
 
-describe_pod() {
-    local pod="$1"
+describe_resource() {
+    local resource_type="$1"
+    local resource_name="$2"
+    
     echo "====================================================================="
-    echo "Describing pod: $pod"
-    kubectl describe pod "$pod" | less
-}
-
-describe_container() {
-    local container="$1"
-    local state=$(load_state)
-    local pod_name=$(echo "$state" | cut -d'|' -f2)
-    echo "====================================================================="
-    echo "Describing container: $container in pod: $pod_name"
-    kubectl describe pod "$pod_name" |
-        awk -v container="$container" '
-        /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
-        in_containers && $0 ~ "^  " container ":$" {
-            found = 1
-            print $0
-            next
-        }
-        found && /^  [^ ]+:$/ && $0 !~ "^    " {
-            found = 0
-        }
-        found && /^[^ ]/ {
-            found = 0
-            in_containers = 0
-        }
-        found { print }
-    ' | less
+    echo "Describing $resource_type: $resource_name"
+    
+    if [[ "$resource_type" == "pod" ]]; then
+        kubectl describe pod "$resource_name" | less
+    else
+        load_state
+        kubectl describe pod "$POD_NAME" | \
+            awk -v container="$resource_name" '
+                /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
+                in_containers && $0 ~ "^  " container ":$" {
+                    found = 1
+                    print $0
+                    next
+                }
+                found && /^  [^ ]+:$/ && $0 !~ "^    " { found = 0 }
+                found && /^[^ ]/ { found = 0; in_containers = 0 }
+                found { print }
+            ' | less
+    fi
 }
 
 highlight_logs() {
     awk -v red="$RED" -v yellow="$YELLOW" -v gray="$GRAY" -v reset="$RESET" '
         {
-            printf "%s%s%s ", gray, $1, reset;
-            msg = substr($0, index($0, $2));
-            gsub(/ERROR/, red "ERROR" reset, msg);
-            gsub(/WARN/, yellow "WARN" reset, msg);
-            print msg;
+            printf "%s%s%s ", gray, $1, reset
+            msg = substr($0, index($0, $2))
+            gsub(/ERROR/, red "ERROR" reset, msg)
+            gsub(/WARN/, yellow "WARN" reset, msg)
+            print msg
         }'
 }
 
 view_logs() {
     local container="$1"
-    local state=$(load_state)
-    local pod_name=$(echo "$state" | cut -d'|' -f2)
+    load_state
+    
     echo "====================================================================="
-    echo "Viewing logs container: $container in pod: $pod_name"
-
-    local log_dir="${CACHE_DIR}/${pod_name}"
-    mkdir -p "$log_dir"
-    local log_file="${log_dir}/${container}.log"
-
-    # Cleanup function
-    cleanup() {
-        if [[ -n "${pid:-}" ]]; then
-            kill "$pid" 2>/dev/null || true
-        fi
-        rm -f "$log_file"
-    }
-
-    # Set trap for cleanup
-    trap cleanup EXIT INT TERM
-
-    # Remove old log_file if exists
-    rm -f "$log_file"
-
-    # Build kubectl command
-    local kubectl_cmd="kubectl logs $pod_name -c $container --timestamps --follow"
-
-    # Start kubectl logs in background, writing to log_file
+    echo "Viewing logs for container: $container in pod: $POD_NAME"
+    
+    local log_file=$(mktemp)
+    trap "rm -f $log_file" EXIT INT TERM
+    
+    local kubectl_cmd="kubectl logs $POD_NAME -c $container --timestamps --follow"
+    
     {
-        # Try current logs first
         if ! $kubectl_cmd 2>&1 | highlight_logs; then
-            # If that fails and we haven't tried --previous yet, try it
-            kubectl logs "$pod_name" -c "$container" --timestamps --follow --previous 2>&1 | highlight_logs
+            kubectl logs "$POD_NAME" -c "$container" --timestamps --follow --previous 2>&1 | highlight_logs
         fi
     } >"$log_file" &
+    
     local pid=$!
-
-    # Give kubectl a moment to start and check if it's still running
     sleep 0.2
-    if ! kill -0 "$pid" 2>/dev/null; then
+    
+    if kill -0 "$pid" 2>/dev/null; then
+        less "$log_file"
+    else
         echo "Error: Failed to start log streaming"
-        cleanup
         return 1
     fi
-
-    # Read from log_file with less
-    less "$log_file"
 }
 
 # ============================================================================
-# FZF Action Dispatcher
+# Action Dispatcher
 # ============================================================================
-dispatch_action() {
+dispatch() {
     local action="$1"
     local target="$2"
-    local state=$(load_state)
-    local mode=$(echo "$state" | cut -d'|' -f1)
-    local pod_name=$(echo "$state" | cut -d'|' -f2)
-
+    load_state
+    
     case "$action" in
-    "enter")
-        if [[ "$mode" == "pods" ]]; then
-            save_state "containers" "$target"
-        elif [[ "$mode" == "containers" ]]; then
-            view_logs "$target"
-        fi
-        ;;
-    "exec")
-        if [[ "$mode" == "pods" ]]; then
-            exec_into_pod "$target"
-        elif [[ "$mode" == "containers" ]]; then
-            exec_into_container "$target"
-        fi
-        ;;
-    "describe")
-        if [[ "$mode" == "pods" ]]; then
-            describe_pod "$target"
-        elif [[ "$mode" == "containers" ]]; then
-            describe_container "$target"
-        fi
-        ;;
-    "delete")
-        if [[ "$mode" == "pods" ]]; then
-            delete_pod "$target" && refresh_cache
-        fi
-        ;;
-    "copy")
-        copy_to_clipboard "$target"
-        ;;
-    "refresh")
-        refresh_cache
-        ;;
-    "back")
-        if [[ "$mode" == "containers" ]]; then
-            save_state "pods" ""
-        fi
-        ;;
+        enter)
+            if [[ "$MODE" == "pods" ]]; then
+                save_state "containers" "$target"
+            else
+                view_logs "$target"
+            fi
+            ;;
+        exec)
+            if [[ "$MODE" == "pods" ]]; then
+                exec_shell "$target"
+            else
+                exec_shell "$POD_NAME" "$target"
+            fi
+            ;;
+        describe)
+            if [[ "$MODE" == "pods" ]]; then
+                describe_resource "pod" "$target"
+            else
+                describe_resource "container" "$target"
+            fi
+            ;;
+        delete)
+            [[ "$MODE" == "pods" ]] && delete_pod "$target" && refresh_cache
+            ;;
+        copy)
+            copy_to_clipboard "$target"
+            ;;
+        refresh)
+            refresh_cache
+            ;;
+        back)
+            [[ "$MODE" == "containers" ]] && save_state "pods"
+            ;;
     esac
 }
 
 # ============================================================================
-# Export
+# Cleanup
 # ============================================================================
-# Export functions for fzf subshells
-export -f colorize get_cache_file load_state save_state
-export -f list_pods list_containers refresh_cache display_data
-export -f copy_to_clipboard exec_into_pod exec_into_container
-export -f delete_pod describe_pod describe_container view_logs highlight_logs
-export -f dispatch_action
+cleanup() {
+    stop_background_refresh
+    rm -f "$STATE_FILE"
+}
 
-# Export constants
+# ============================================================================
+# Export Functions for FZF
+# ============================================================================
+export -f colorize load_state save_state
+export -f show_pod_header show_container_header
+export -f list_pods list_containers refresh_cache display_data
+export -f copy_to_clipboard exec_shell delete_pod describe_resource
+export -f view_logs highlight_logs dispatch
+
+# Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
-export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE
+export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE MODE POD_NAME
 
 # ============================================================================
 # Main
 # ============================================================================
 main() {
+    # Setup
     check_dependencies "fzf" "kubectl"
-
-    CONTEXT=$(get_current_context) || error_exit "Failed to get current context"
+    LIB_PATH=$(find_library)
+    
+    # Initialize environment
+    CONTEXT=$(get_current_context) || { echo "Failed to get current context" >&2; exit 1; }
     NAMESPACE=$(get_current_namespace)
     CACHE_DIR="/tmp/kzf/${CONTEXT}/${NAMESPACE}"
     STATE_FILE="${CACHE_DIR}/.state"
-
+    
     # Initialize state
     mkdir -p "$CACHE_DIR"
-    save_state "pods" ""
-
+    save_state "pods"
+    
+    # Setup cleanup
+    trap cleanup EXIT INT TERM
+    
+    # Start background refresh
     start_background_refresh
-
-    # Run fzf with reload bindings
+    
+    # Run FZF interface
     display_data | fzf \
         --no-multi \
         --ansi \
@@ -458,14 +405,17 @@ main() {
         --prompt="KZF> " \
         --height=100% \
         --header-lines=3 \
-        --bind="enter:execute-silent(dispatch_action enter {1})+reload(display_data)+change-query()" \
-        --bind="ctrl-e:execute(dispatch_action exec {1})+reload(display_data)" \
-        --bind="ctrl-d:execute(dispatch_action describe {1})+reload(display_data)" \
-        --bind="ctrl-k:execute(dispatch_action delete {1})+reload(display_data)" \
-        --bind="ctrl-y:execute-silent(dispatch_action copy {1})+reload(display_data)" \
-        --bind="ctrl-r:execute-silent(dispatch_action refresh)+reload(display_data)" \
-        --bind="esc:execute-silent(dispatch_action back)+reload(display_data)+change-query()" \
-        --bind="ctrl-q:abort"
+        --bind="enter:execute-silent(dispatch enter {1})+reload(display_data)+change-query()" \
+        --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
+        --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
+        --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
+        --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
+        --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
+        --bind="esc:execute-silent(dispatch back)+reload(display_data)+change-query()"
 }
 
-main "$@"
+# Run main if script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
+
