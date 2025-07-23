@@ -341,7 +341,7 @@ switch_context() {
     # Remove trailing marker if present
     new_context="${new_context% \*}"
 
-    echo "Switching to context: $new_context"
+    echo "Switching to context: $new_context..."
     if kubectl config use-context "$new_context" >/dev/null 2>&1; then
         # Update global variables
         export CONTEXT="$new_context"
@@ -485,7 +485,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --header-lines=3 \
         --listen \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
-        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || echo 'change-prompt(Containers> )+execute-silent(dispatch enter {1})+reload(display_data)+clear-query'" \
+        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || grep -q MODE=contexts $STATE_FILE && echo 'execute(dispatch enter {1})+change-prompt(Pods> )+reload(display_data)+clear-query' || echo 'change-prompt(Containers> )+execute-silent(dispatch enter {1})+reload(display_data)+clear-query'" \
         --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
         --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
