@@ -257,12 +257,12 @@ stop_background_refresh() {
 # ============================================================================
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-V") edit  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
+    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") yaml  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-V") edit"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") yaml"
 }
 
 show_context_header() {
@@ -277,7 +277,7 @@ show_resources_header() {
 
 show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-V") edit"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-Y") yaml"
 
     # Add resource-specific actions
     case "$RESOURCE_TYPE" in
