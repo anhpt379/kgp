@@ -280,7 +280,7 @@ show_objects_header() {
     local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 
     case "$RESOURCE_TYPE" in
-        Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
+    Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
     esac
 
     echo "$actions"
@@ -417,7 +417,13 @@ delete_object() {
     local object_name="$2"
 
     echo "====================================================================="
-    echo "Deleting $resource_type: $object_name"
+    echo "You are about to delete $resource_type: $object_name"
+    read -p "Are you sure? [y/N] " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        return 1
+    fi
+
     kubectl delete "$resource_type" "$object_name"
 }
 
