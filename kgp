@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
 # kgp - Kubernetes Get Pods (and more)
-# 
+#
 # Interactive FZF-based tool for exploring and managing Kubernetes resources
 # including pods, containers, deployments, services, configmaps, and more.
 # Features real-time updates, multi-context support, and resource operations
@@ -13,7 +13,7 @@ set -euo pipefail
 # Constants
 # ============================================================================
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly CACHE_REFRESH_INTERVAL=30
+readonly CACHE_REFRESH_INTERVAL="${KGP_CACHE_REFRESH:-30}"
 
 # Colors
 readonly RED='\033[0;31m'
@@ -35,6 +35,9 @@ readonly LIB_SEARCH_PATHS=(
 # ============================================================================
 # Global Variables
 # ============================================================================
+CACHE_BASE_DIR="${KGP_CACHE_DIR:-/tmp/kgp}"
+mkdir -p "${CACHE_BASE_DIR}"
+
 CONTEXT=""
 NAMESPACE=""
 CACHE_DIR=""
@@ -47,6 +50,13 @@ OBJECT_NAME=""
 # ============================================================================
 # Core Functions
 # ============================================================================
+debug() {
+    if [[ "${KGP_DEBUG:-0}" == "1" ]]; then
+        echo "[DEBUG] $*" >&2
+    fi
+    return 0
+}
+
 find_library() {
     for path in "${LIB_SEARCH_PATHS[@]}"; do
         if [[ -f "$path" ]]; then
@@ -107,17 +117,17 @@ highlight_logs() {
             full_container = parts[1]
             timestamp = parts[2]
             message = parts[3]
-            
+
             # Extract just the container name from pod/pod-name/container-name
             split(full_container, container_parts, "/")
             container = container_parts[length(container_parts)]
-            
+
             # Assign color to container if not seen before
             if (!(container in container_colors)) {
                 container_colors[container] = colors[next_color]
                 next_color = (next_color + 1) % color_count
             }
-            
+
             # Print with colors: timestamp first, then container, then message
             printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n",
                 timestamp, container_colors[container], container, message
@@ -161,7 +171,7 @@ RESOURCE_TYPE=$resource_type
 OBJECT_NAME=$object_name
 CONTEXT=$CONTEXT
 NAMESPACE=$NAMESPACE
-CACHE_DIR=/tmp/kgp/${CONTEXT}/${NAMESPACE}
+CACHE_DIR=${CACHE_BASE_DIR}/${CONTEXT}/${NAMESPACE}
 FZF_PORT=${FZF_PORT:-}
 EOF
 }
@@ -177,6 +187,7 @@ load_state() {
 # ============================================================================
 refresh_cache() {
     load_state
+    debug "Refreshing cache for MODE=$MODE, CONTEXT=$CONTEXT, NAMESPACE=$NAMESPACE"
     mkdir -p "$CACHE_DIR"
 
     if [[ "$MODE" == "pods" ]] || [[ "$MODE" == "containers" ]]; then
@@ -185,6 +196,7 @@ refresh_cache() {
 
         if kubectl get pods -o json >"$temp_file" 2>&1; then
             mv "$temp_file" "$raw_data_file"
+            debug "Successfully fetched pod data, processing with $LIB_PATH"
             "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
         else
             echo "Failed to fetch pod data" >&2
@@ -201,8 +213,10 @@ refresh_objects_cache() {
     local cache_file="${CACHE_DIR}/${resource_type}.cache"
     local temp_file=$(mktemp)
 
+    debug "Refreshing cache for resource type: $resource_type"
     if kubectl get "$resource_type" -o wide >"$temp_file" 2>&1; then
         mv "$temp_file" "$cache_file"
+        debug "Successfully cached $resource_type data"
     else
         echo "Failed to fetch $resource_type data" >&2
         rm -f "$temp_file"
@@ -214,6 +228,7 @@ refresh_objects_cache() {
 # Background Refresh
 # ============================================================================
 start_background_refresh() {
+    debug "Starting background refresh with interval: $CACHE_REFRESH_INTERVAL seconds"
     while true; do
         refresh_cache
         load_state
@@ -230,6 +245,7 @@ start_background_refresh() {
 
 stop_background_refresh() {
     if [[ -n "$BG_REFRESH_PID" ]]; then
+        debug "Stopping background refresh process: $BG_REFRESH_PID"
         kill "$BG_REFRESH_PID" 2>/dev/null || true
         wait "$BG_REFRESH_PID" 2>/dev/null || true
         BG_REFRESH_PID=""
@@ -420,7 +436,8 @@ switch_context() {
         # Update global variables
         export CONTEXT="$new_context"
         export NAMESPACE=$(get_current_namespace)
-        export CACHE_DIR="/tmp/kgp/${CONTEXT}/${NAMESPACE}"
+        export CACHE_DIR="${CACHE_BASE_DIR}/${CONTEXT}/${NAMESPACE}"
+        debug "Switched to context: $CONTEXT, namespace: $NAMESPACE"
         save_state "pods"
     fi
 }
@@ -589,7 +606,7 @@ cleanup() {
 # ============================================================================
 # Export Functions for FZF
 # ============================================================================
-export -f colorize highlight_logs load_state save_state
+export -f debug colorize highlight_logs load_state save_state
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
@@ -599,8 +616,8 @@ export -f scale_object get_yaml
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
-export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE MODE POD_NAME
-export RESOURCE_TYPE OBJECT_NAME
+export LIB_PATH CACHE_BASE_DIR CACHE_DIR
+export STATE_FILE CONTEXT NAMESPACE MODE POD_NAME RESOURCE_TYPE OBJECT_NAME
 
 # Setup
 check_dependencies "kubectl" "fzf" "awk" "curl"
@@ -612,8 +629,10 @@ CONTEXT=$(get_current_context) || {
     exit 1
 }
 NAMESPACE=$(get_current_namespace)
-CACHE_DIR="/tmp/kgp/${CONTEXT}/${NAMESPACE}"
-STATE_FILE="/tmp/kgp/.state"
+CACHE_DIR="${CACHE_BASE_DIR}/${CONTEXT}/${NAMESPACE}"
+STATE_FILE="${CACHE_BASE_DIR}/.state"
+
+debug "Initialized with CONTEXT=$CONTEXT, NAMESPACE=$NAMESPACE, CACHE_DIR=$CACHE_DIR"
 
 # Initialize state
 save_state "pods"
