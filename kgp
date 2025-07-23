@@ -435,7 +435,7 @@ describe_object() {
     echo "Describing $resource: $object"
 
     if [[ "$resource" == "pod" ]]; then
-        kubectl describe pod "$object" | less
+        kubectl describe pod "$object" | less -R +F
     elif [[ "$resource" == "container" ]]; then
         load_state
         kubectl describe pod "$POD" |
@@ -449,9 +449,9 @@ describe_object() {
                 found && /^  [^ ]+:$/ && $0 !~ "^    " { found = 0 }
                 found && /^[^ ]/ { found = 0; in_containers = 0 }
                 found { print }
-            ' | less
+            ' | less -R +F
     else
-        kubectl describe "$resource" "$object" | less
+        kubectl describe "$resource" "$object" | less -R +F
     fi
 }
 
@@ -478,11 +478,11 @@ view_logs() {
 
     [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
-    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less || true); then
+    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less -R +F || true); then
         return 0
     else
         echo "Falling back to --previous logs..." >&2
-        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less || true)
+        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less -R +F || true)
     fi
 }
 
