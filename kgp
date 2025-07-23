@@ -1,6 +1,11 @@
 #!/bin/bash
 # ============================================================================
-# Kubernetes Pod and Container Manager with FZF
+# kgp - Kubernetes Get Pods (and more)
+# 
+# Interactive FZF-based tool for exploring and managing Kubernetes resources
+# including pods, containers, deployments, services, configmaps, and more.
+# Features real-time updates, multi-context support, and resource operations
+# like exec, logs, describe, scale, and delete.
 # ============================================================================
 set -euo pipefail
 
