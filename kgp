@@ -44,8 +44,8 @@ CACHE_DIR=""
 STATE_FILE=""
 BG_REFRESH_PID=""
 LIB_PATH=""
-RESOURCE_TYPE=""
-OBJECT_NAME=""
+RESOURCE=""
+OBJECT=""
 
 # ============================================================================
 # Core Functions
@@ -160,15 +160,15 @@ get_contexts() {
 # ============================================================================
 save_state() {
     local mode="$1"
-    local pod_name="${2:-}"
-    local resource_type="${3:-}"
-    local object_name="${4:-}"
+    local pod="${2:-}"
+    local resource="${3:-}"
+    local object="${4:-}"
 
     cat >"$STATE_FILE" <<EOF
 MODE=$mode
-POD_NAME=$pod_name
-RESOURCE_TYPE=$resource_type
-OBJECT_NAME=$object_name
+POD=$pod
+RESOURCE=$resource
+OBJECT=$object
 CONTEXT=$CONTEXT
 NAMESPACE=$NAMESPACE
 CACHE_DIR=${CACHE_BASE_DIR}/${CONTEXT}/${NAMESPACE}
@@ -203,22 +203,22 @@ refresh_cache() {
             rm -f "$temp_file"
             return 1
         fi
-    elif [[ "$MODE" == "objects" ]] && [[ -n "$RESOURCE_TYPE" ]]; then
-        refresh_objects_cache "$RESOURCE_TYPE"
+    elif [[ "$MODE" == "objects" ]] && [[ -n "$RESOURCE" ]]; then
+        refresh_objects_cache "$RESOURCE"
     fi
 }
 
 refresh_objects_cache() {
-    local resource_type="$1"
-    local cache_file="${CACHE_DIR}/${resource_type}.cache"
+    local resource="$1"
+    local cache_file="${CACHE_DIR}/${resource}.cache"
     local temp_file=$(mktemp)
 
-    debug "Refreshing cache for resource type: $resource_type"
-    if kubectl get "$resource_type" -o wide >"$temp_file" 2>&1; then
+    debug "Refreshing cache for resource type: $resource"
+    if kubectl get "$resource" -o wide >"$temp_file" 2>&1; then
         mv "$temp_file" "$cache_file"
-        debug "Successfully cached $resource_type data"
+        debug "Successfully cached $resource data"
     else
-        echo "Failed to fetch $resource_type data" >&2
+        echo "Failed to fetch $resource data" >&2
         rm -f "$temp_file"
         return 1
     fi
@@ -261,7 +261,7 @@ show_pod_header() {
 }
 
 show_container_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD")"
     echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
@@ -279,7 +279,7 @@ show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
     local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 
-    case "$RESOURCE_TYPE" in
+    case "$RESOURCE" in
     Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
     esac
 
@@ -326,7 +326,7 @@ list_containers() {
 
     show_container_header
     head -1 "$containers_file" | awk '{print substr($0, index($0, $2))}'
-    grep "${POD_NAME}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
+    grep "${POD}" "$containers_file" | awk '{print substr($0, index($0, $2))}'
 }
 
 list_contexts() {
@@ -362,19 +362,19 @@ list_resources() {
 }
 
 list_objects() {
-    local resource_type="$1"
-    local cache_file="${CACHE_DIR}/${resource_type}.cache"
+    local resource="$1"
+    local cache_file="${CACHE_DIR}/${resource}.cache"
 
     # Refresh cache if it doesn't exist
     if [[ ! -f "$cache_file" ]]; then
-        refresh_objects_cache "$resource_type"
+        refresh_objects_cache "$resource"
     fi
 
     show_objects_header
     if [[ -f "$cache_file" ]]; then
         cat "$cache_file"
     else
-        echo "No $resource_type found or unable to fetch data"
+        echo "No $resource found or unable to fetch data"
     fi
 }
 
@@ -385,7 +385,7 @@ display_data() {
     containers) list_containers ;;
     contexts) list_contexts ;;
     resources) list_resources ;;
-    objects) list_objects "$RESOURCE_TYPE" ;;
+    objects) list_objects "$RESOURCE" ;;
     esac
 }
 
@@ -413,33 +413,33 @@ exec_shell() {
 }
 
 delete_object() {
-    local resource_type="$1"
-    local object_name="$2"
+    local resource="$1"
+    local object="$2"
 
     echo "====================================================================="
-    echo "You are about to delete $resource_type: $object_name"
+    echo "You are about to delete $resource: $object"
     read -p "Are you sure? [y/N] " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         echo "Aborted."
         return 1
     fi
 
-    kubectl delete "$resource_type" "$object_name"
+    kubectl delete "$resource" "$object"
 }
 
 describe_object() {
-    local resource_type="$1"
-    local object_name="$2"
+    local resource="$1"
+    local object="$2"
 
     echo "====================================================================="
-    echo "Describing $resource_type: $object_name"
+    echo "Describing $resource: $object"
 
-    if [[ "$resource_type" == "pod" ]]; then
-        kubectl describe pod "$object_name" | less
-    elif [[ "$resource_type" == "container" ]]; then
+    if [[ "$resource" == "pod" ]]; then
+        kubectl describe pod "$object" | less
+    elif [[ "$resource" == "container" ]]; then
         load_state
-        kubectl describe pod "$POD_NAME" |
-            awk -v container="$object_name" '
+        kubectl describe pod "$POD" |
+            awk -v container="$object" '
                 /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
                 in_containers && $0 ~ "^  " container ":$" {
                     found = 1
@@ -451,7 +451,7 @@ describe_object() {
                 found { print }
             ' | less
     else
-        kubectl describe "$resource_type" "$object_name" | less
+        kubectl describe "$resource" "$object" | less
     fi
 }
 
@@ -487,18 +487,18 @@ view_logs() {
 }
 
 scale_object() {
-    local resource_type="$1"
-    local object_name="$2"
+    local resource="$1"
+    local object="$2"
 
     echo "====================================================================="
-    echo "Current replicas for $resource_type/$object_name:"
-    kubectl get "$resource_type" "$object_name" -o jsonpath='{.spec.replicas}'
+    echo "Current replicas for $resource/$object:"
+    kubectl get "$resource" "$object" -o jsonpath='{.spec.replicas}'
     echo
     echo -n "Enter new replica count: "
     read -r replicas
 
     if [[ "$replicas" =~ ^[0-9]+$ ]]; then
-        kubectl scale "$resource_type" "$object_name" --replicas="$replicas"
+        kubectl scale "$resource" "$object" --replicas="$replicas"
     else
         echo "Invalid replica count"
         echo "Press any key to continue..."
@@ -507,13 +507,13 @@ scale_object() {
 }
 
 edit_object() {
-    local resource_type="$1"
-    local object_name="$2"
+    local resource="$1"
+    local object="$2"
 
     echo "====================================================================="
-    echo "Editing $resource_type/$object_name"
+    echo "Editing $resource/$object"
 
-    kubectl edit $resource_type "$object_name"
+    kubectl edit $resource "$object"
 }
 
 # ============================================================================
@@ -535,20 +535,20 @@ dispatch() {
             refresh_cache
         elif [[ "$MODE" == "resources" ]]; then
             # Extract just the resource type from the first column
-            local resource_type=$(echo "$target" | awk '{print $1}')
-            save_state "objects" "" "$resource_type"
-            refresh_objects_cache "$resource_type"
+            local resource=$(echo "$target" | awk '{print $1}')
+            save_state "objects" "" "$resource"
+            refresh_objects_cache "$resource"
         elif [[ "$MODE" == "objects" ]]; then
             # For now, just describe the object
-            describe_object "$RESOURCE_TYPE" "$target"
+            describe_object "$RESOURCE" "$target"
         fi
         ;;
     exec)
         if [[ "$MODE" == "pods" ]]; then
             exec_shell "$target"
         elif [[ "$MODE" == "containers" ]]; then
-            exec_shell "$POD_NAME" "$target"
-        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" == "pods" ]]; then
+            exec_shell "$POD" "$target"
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" == "pods" ]]; then
             exec_shell "$target"
         fi
         ;;
@@ -558,28 +558,28 @@ dispatch() {
         elif [[ "$MODE" == "containers" ]]; then
             describe_object "container" "$target"
         elif [[ "$MODE" == "objects" ]]; then
-            describe_object "$RESOURCE_TYPE" "$target"
+            describe_object "$RESOURCE" "$target"
         fi
         ;;
     delete)
         if [[ "$MODE" == "pods" ]]; then
             delete_object "pod" "$target" && refresh_cache
         elif [[ "$MODE" == "objects" ]]; then
-            delete_object "$RESOURCE_TYPE" "$target" && refresh_objects_cache "$RESOURCE_TYPE"
+            delete_object "$RESOURCE" "$target" && refresh_objects_cache "$RESOURCE"
         fi
         ;;
     logs)
         if [[ "$MODE" == "pods" ]]; then
             view_logs "$target"
         elif [[ "$MODE" == "containers" ]]; then
-            view_logs "$POD_NAME" "$target"
-        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" == "pods" ]]; then
+            view_logs "$POD" "$target"
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" == "pods" ]]; then
             view_logs "$target"
         fi
         ;;
     refresh)
         if [[ "$MODE" == "objects" ]]; then
-            refresh_objects_cache "$RESOURCE_TYPE"
+            refresh_objects_cache "$RESOURCE"
         else
             refresh_cache
         fi
@@ -602,9 +602,9 @@ dispatch() {
         save_state "resources"
         ;;
     scale)
-        if [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" =~ ^(Deployments|StatefulSets|DaemonSets|ReplicaSets)$ ]]; then
-            scale_object "$RESOURCE_TYPE" "$target"
-            refresh_objects_cache "$RESOURCE_TYPE"
+        if [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" =~ ^(Deployments|StatefulSets|DaemonSets|ReplicaSets)$ ]]; then
+            scale_object "$RESOURCE" "$target"
+            refresh_objects_cache "$RESOURCE"
         fi
         ;;
     yaml)
@@ -612,9 +612,9 @@ dispatch() {
             edit_object "pod" "$target"
         elif [[ "$MODE" == "containers" ]]; then
             # For containers, we need to edit the pod YAML
-            edit_object "pod" "$POD_NAME"
+            edit_object "pod" "$POD"
         elif [[ "$MODE" == "objects" ]]; then
-            edit_object "$RESOURCE_TYPE" "$target"
+            edit_object "$RESOURCE" "$target"
         else
             echo "Editing YAML not available in this mode"
             echo "Press any key to continue..."
@@ -646,7 +646,7 @@ export -f scale_object edit_object show_help
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
 export LIB_PATH CACHE_BASE_DIR CACHE_DIR
-export STATE_FILE CONTEXT NAMESPACE MODE POD_NAME RESOURCE_TYPE OBJECT_NAME
+export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
 # Setup
 check_dependencies "kubectl" "fzf" "awk" "curl"
@@ -705,7 +705,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute(dispatch exec {1})+reload(display_data)'
             elif grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch exec {1})+reload(display_data)'
-            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE_TYPE=pods \$STATE_FILE; then
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE=pods \$STATE_FILE; then
                 echo 'execute(dispatch exec {1})+reload(display_data)'
             else
                 echo 'execute:echo Resource does not support exec'
@@ -720,7 +720,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --bind="ctrl-y:execute(dispatch yaml {1})+reload(display_data)" \
         --bind="ctrl-c:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
         --bind="ctrl-s:transform:
-            if grep -q MODE=objects \$STATE_FILE && grep -q -E 'RESOURCE_TYPE=(deployments|statefulsets|daemonsets|replicasets)' \$STATE_FILE; then
+            if grep -q MODE=objects \$STATE_FILE && grep -q -E 'RESOURCE=(deployments|statefulsets|daemonsets|replicasets)' \$STATE_FILE; then
                 echo 'execute(dispatch scale {1})+reload(display_data)'
             else
                 echo 'execute:echo Scale not available for this resource type'
@@ -731,7 +731,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
             elif grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
-            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE_TYPE=pods \$STATE_FILE; then
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE=pods \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
             else
                 echo 'execute:echo Logs not available for this resource type'
