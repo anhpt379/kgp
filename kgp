@@ -257,36 +257,59 @@ stop_background_refresh() {
 # ============================================================================
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") yaml  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
+    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") yaml"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_context_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT")"
-    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit"
+    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "?") help"
 }
 
 show_resources_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit"
+    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "?") help"
 }
 
 show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-Y") yaml"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 
-    # Add resource-specific actions
     case "$RESOURCE_TYPE" in
-    Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-S") scale" ;;
-    ConfigMaps | Secrets) actions+="  $(colorize MAGENTA "CTRL-K") delete" ;;
-    *) actions+="  $(colorize MAGENTA "CTRL-K") delete" ;;
+        Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
     esac
 
     echo "$actions"
+}
+
+show_help() {
+    cat <<EOF
+$(colorize CYAN "Context:")
+  $(colorize YELLOW "$CONTEXT")
+
+$(colorize CYAN "Namespace:")
+  $(colorize YELLOW "$NAMESPACE")
+
+$(colorize CYAN "Navigation / Views:")
+  $(colorize YELLOW "ENTER")         Open (containers, describe, select)
+  $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-Q")  Back / Quit
+  $(colorize YELLOW "CTRL-C")        Switch context
+  $(colorize YELLOW "CTRL-R")        Browse resource types
+  $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
+
+$(colorize CYAN "Actions:")
+  $(colorize YELLOW "CTRL-L")        View logs
+  $(colorize YELLOW "CTRL-E")        Exec into pod/container
+  $(colorize YELLOW "CTRL-D")        Describe resource
+  $(colorize YELLOW "CTRL-Y")        Edit YAML
+  $(colorize YELLOW "CTRL-K")        Delete resource
+  $(colorize YELLOW "CTRL-S")        Scale (only Deployments, StatefulSets, etc.)
+
+EOF
 }
 
 list_pods() {
@@ -612,7 +635,7 @@ export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
 export -f exec_shell delete_object describe_object view_logs
 export -f get_contexts switch_context get_current_namespace
-export -f scale_object edit_object
+export -f scale_object edit_object show_help
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
@@ -654,6 +677,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --height=100% \
         --header-lines=3 \
         --listen \
+        --preview="show_help" \
+        --preview-window=right,40%,hidden \
+        --bind="?:toggle-preview,ctrl-h:toggle-preview" \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
         --bind="ctrl-q:abort" \
         --bind="enter:transform:
