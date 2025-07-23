@@ -257,12 +257,12 @@ stop_background_refresh() {
 # ============================================================================
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") yaml  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
+    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-V") edit  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") yaml"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-V") edit"
 }
 
 show_context_header() {
@@ -277,7 +277,7 @@ show_resources_header() {
 
 show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-Y") yaml"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-V") edit"
 
     # Add resource-specific actions
     case "$RESOURCE_TYPE" in
@@ -477,14 +477,14 @@ scale_object() {
     fi
 }
 
-get_yaml() {
+edit_object() {
     local resource_type="$1"
     local object_name="$2"
 
     echo "====================================================================="
-    echo "Getting YAML for $resource_type/$object_name:"
+    echo "Editing $resource_type/$object_name"
 
-    kubectl get $resource_type "$object_name" -o yaml | less
+    kubectl edit $resource_type "$object_name"
 }
 
 # ============================================================================
@@ -580,14 +580,14 @@ dispatch() {
         ;;
     yaml)
         if [[ "$MODE" == "pods" ]]; then
-            get_yaml "pod" "$target"
+            edit_object "pod" "$target"
         elif [[ "$MODE" == "containers" ]]; then
-            # For containers, we need to get the pod YAML
-            get_yaml "pod" "$POD_NAME"
+            # For containers, we need to edit the pod YAML
+            edit_object "pod" "$POD_NAME"
         elif [[ "$MODE" == "objects" ]]; then
-            get_yaml "$RESOURCE_TYPE" "$target"
+            edit_object "$RESOURCE_TYPE" "$target"
         else
-            echo "YAML view not available in this mode"
+            echo "Editing YAML not available in this mode"
             echo "Press any key to continue..."
             read -n 1 -s
         fi
@@ -612,7 +612,7 @@ export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
 export -f exec_shell delete_object describe_object view_logs
 export -f get_contexts switch_context get_current_namespace
-export -f scale_object get_yaml
+export -f scale_object edit_object
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
