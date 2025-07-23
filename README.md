@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Shell](https://img.shields.io/badge/shell-bash-green.svg)](https://www.gnu.org/software/bash/)
 
+![Screenshot](assets/screenshot.png)
+
 ## 🚀 Why `kgp`?
 
 **Instant access to your Kubernetes resources.** No loading screens, no bloat, just pure speed.
