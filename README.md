@@ -1,4 +1,4 @@
-# kgp - Kubernetes Get Pods (and more)
+# kgp - kubectl get pods (and more)
 
 **Lightning-fast, interactive Kubernetes resource browser powered by fzf**
 

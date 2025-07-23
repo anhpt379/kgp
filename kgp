@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# kgp - Kubernetes Get Pods (and more)
+# kgp - kubectl get pods (and more)
 #
 # Interactive FZF-based tool for exploring and managing Kubernetes resources
 # including pods, containers, deployments, services, configmaps, and more.
