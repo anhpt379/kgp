@@ -37,6 +37,8 @@ CACHE_DIR=""
 STATE_FILE=""
 BG_REFRESH_PID=""
 LIB_PATH=""
+RESOURCE_TYPE=""
+OBJECT_NAME=""
 
 # ============================================================================
 # Core Functions
@@ -59,7 +61,6 @@ check_dependencies() {
             missing+=("$cmd")
         fi
     done
-
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo "Error: Missing required commands: ${missing[*]}" >&2
         exit 1
@@ -102,17 +103,17 @@ highlight_logs() {
             full_container = parts[1]
             timestamp = parts[2]
             message = parts[3]
-
+            
             # Extract just the container name from pod/pod-name/container-name
             split(full_container, container_parts, "/")
             container = container_parts[length(container_parts)]
-
+            
             # Assign color to container if not seen before
             if (!(container in container_colors)) {
                 container_colors[container] = colors[next_color]
                 next_color = (next_color + 1) % color_count
             }
-
+            
             # Print with colors: timestamp first, then container, then message
             printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n",
                 timestamp, container_colors[container], container, message
@@ -146,9 +147,14 @@ get_contexts() {
 save_state() {
     local mode="$1"
     local pod_name="${2:-}"
+    local resource_type="${3:-}"
+    local object_name="${4:-}"
+
     cat >"$STATE_FILE" <<EOF
 MODE=$mode
 POD_NAME=$pod_name
+RESOURCE_TYPE=$resource_type
+OBJECT_NAME=$object_name
 CONTEXT=$CONTEXT
 NAMESPACE=$NAMESPACE
 CACHE_DIR=/tmp/kgp/${CONTEXT}/${NAMESPACE}
@@ -167,16 +173,34 @@ load_state() {
 # ============================================================================
 refresh_cache() {
     load_state
-
     mkdir -p "$CACHE_DIR"
-    local raw_data_file="${CACHE_DIR}/raw_data.json"
+
+    if [[ "$MODE" == "pods" ]] || [[ "$MODE" == "containers" ]]; then
+        local raw_data_file="${CACHE_DIR}/raw_data.json"
+        local temp_file=$(mktemp)
+
+        if kubectl get pods -o json >"$temp_file" 2>&1; then
+            mv "$temp_file" "$raw_data_file"
+            "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
+        else
+            echo "Failed to fetch pod data" >&2
+            rm -f "$temp_file"
+            return 1
+        fi
+    elif [[ "$MODE" == "objects" ]] && [[ -n "$RESOURCE_TYPE" ]]; then
+        refresh_objects_cache "$RESOURCE_TYPE"
+    fi
+}
+
+refresh_objects_cache() {
+    local resource_type="$1"
+    local cache_file="${CACHE_DIR}/${resource_type}.cache"
     local temp_file=$(mktemp)
 
-    if kubectl get pods -o json >"$temp_file" 2>&1; then
-        mv "$temp_file" "$raw_data_file"
-        "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
+    if kubectl get "$resource_type" -o wide >"$temp_file" 2>&1; then
+        mv "$temp_file" "$cache_file"
     else
-        echo "Failed to fetch pod data" >&2
+        echo "Failed to fetch $resource_type data" >&2
         rm -f "$temp_file"
         return 1
     fi
@@ -189,11 +213,12 @@ start_background_refresh() {
     while true; do
         refresh_cache
         load_state
-        
-        # Trigger FZF reload if port file exists
+
+        # Trigger reload if FZF is running
         if [[ -n "$FZF_PORT" ]]; then
             curl -XPOST localhost:$FZF_PORT -d 'reload(display_data)'
         fi
+
         sleep "$CACHE_REFRESH_INTERVAL"
     done &
     BG_REFRESH_PID=$!
@@ -212,17 +237,36 @@ stop_background_refresh() {
 # ============================================================================
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") list containers  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
+    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "ESC")/$(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-Y") yaml  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-C") contexts "
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD_NAME")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") view logs  $(colorize MAGENTA "ESC") go back  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "CTRL-R") refresh"
+    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") yaml"
 }
 
 show_context_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT")"
-    echo "$(colorize MAGENTA "ENTER") select context  $(colorize MAGENTA "ESC") go back  $(colorize MAGENTA "CTRL-Y") copy name"
+    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit"
+}
+
+show_resources_header() {
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
+    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit"
+}
+
+show_objects_header() {
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "CTRL-Y") yaml"
+
+    # Add resource-specific actions
+    case "$RESOURCE_TYPE" in
+    Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-K") delete  $(colorize MAGENTA "CTRL-S") scale" ;;
+    ConfigMaps | Secrets) actions+="  $(colorize MAGENTA "CTRL-K") delete" ;;
+    *) actions+="  $(colorize MAGENTA "CTRL-K") delete" ;;
+    esac
+
+    echo "$actions"
 }
 
 list_pods() {
@@ -250,37 +294,61 @@ list_contexts() {
     done
 }
 
+list_resources() {
+    show_resources_header
+    echo "NAME                            DESCRIPTION"
+    echo "Deployments                     Deployment controllers"
+    echo "StatefulSets                    StatefulSet controllers"
+    echo "DaemonSets                      DaemonSet controllers"
+    echo "ReplicaSets                     ReplicaSet controllers"
+    echo "Services                        Service endpoints"
+    echo "Ingresses                       Ingress rules"
+    echo "ConfigMaps                      Configuration data"
+    echo "Secrets                         Secret data"
+    echo "PersistentVolumeClaims          Storage claims"
+    echo "PersistentVolumes               Storage volumes"
+    echo "Jobs                            Job workloads"
+    echo "CronJobs                        Scheduled jobs"
+    echo "ServiceAccounts                 Service accounts"
+    echo "Roles                           RBAC roles"
+    echo "RoleBindings                    RBAC role bindings"
+    echo "ClusterRoles                    Cluster-wide RBAC roles"
+    echo "ClusterRoleBindings             Cluster-wide RBAC role bindings"
+    echo "NetworkPolicies                 Network policies"
+    echo "HorizontalPodAutoscalers        HPA controllers"
+}
+
+list_objects() {
+    local resource_type="$1"
+    local cache_file="${CACHE_DIR}/${resource_type}.cache"
+
+    # Refresh cache if it doesn't exist
+    if [[ ! -f "$cache_file" ]]; then
+        refresh_objects_cache "$resource_type"
+    fi
+
+    show_objects_header
+    if [[ -f "$cache_file" ]]; then
+        cat "$cache_file"
+    else
+        echo "No $resource_type found or unable to fetch data"
+    fi
+}
+
 display_data() {
     load_state
     case "$MODE" in
     pods) list_pods ;;
     containers) list_containers ;;
     contexts) list_contexts ;;
+    resources) list_resources ;;
+    objects) list_objects "$RESOURCE_TYPE" ;;
     esac
 }
 
 # ============================================================================
 # Action Functions
 # ============================================================================
-copy_to_clipboard() {
-    local text="$1"
-    local clipboard_cmd=""
-
-    if command -v pbcopy &>/dev/null; then
-        clipboard_cmd="pbcopy"
-    elif command -v xclip &>/dev/null; then
-        clipboard_cmd="xclip -selection clipboard"
-    elif command -v wl-copy &>/dev/null; then
-        clipboard_cmd="wl-copy"
-    else
-        echo "No clipboard utility found"
-        return 1
-    fi
-
-    echo "$text" | $clipboard_cmd
-    echo "Copied '$text' to clipboard"
-}
-
 exec_shell() {
     local pod="$1"
     local container="${2:-}"
@@ -291,7 +359,6 @@ exec_shell() {
 
     echo "====================================================================="
     echo "Executing into ${container:+container: $container in }pod: $pod"
-
     if eval "$exec_cmd"; then
         return 0
     else
@@ -302,26 +369,28 @@ exec_shell() {
     fi
 }
 
-delete_pod() {
-    local pod="$1"
+delete_object() {
+    local resource_type="$1"
+    local object_name="$2"
+
     echo "====================================================================="
-    echo "Deleting pod: $pod"
-    kubectl delete pod "$pod"
+    echo "Deleting $resource_type: $object_name"
+    kubectl delete "$resource_type" "$object_name"
 }
 
-describe_resource() {
+describe_object() {
     local resource_type="$1"
-    local resource_name="$2"
+    local object_name="$2"
 
     echo "====================================================================="
-    echo "Describing $resource_type: $resource_name"
+    echo "Describing $resource_type: $object_name"
 
     if [[ "$resource_type" == "pod" ]]; then
-        kubectl describe pod "$resource_name" | less
-    else
+        kubectl describe pod "$object_name" | less
+    elif [[ "$resource_type" == "container" ]]; then
         load_state
         kubectl describe pod "$POD_NAME" |
-            awk -v container="$resource_name" '
+            awk -v container="$object_name" '
                 /^Containers:/ || /^Init Containers:/ { in_containers = 1 }
                 in_containers && $0 ~ "^  " container ":$" {
                     found = 1
@@ -332,12 +401,13 @@ describe_resource() {
                 found && /^[^ ]/ { found = 0; in_containers = 0 }
                 found { print }
             ' | less
+    else
+        kubectl describe "$resource_type" "$object_name" | less
     fi
 }
 
 switch_context() {
     local new_context="$1"
-
     # Remove trailing marker if present
     new_context="${new_context% \*}"
 
@@ -347,7 +417,6 @@ switch_context() {
         export CONTEXT="$new_context"
         export NAMESPACE=$(get_current_namespace)
         export CACHE_DIR="/tmp/kgp/${CONTEXT}/${NAMESPACE}"
-
         save_state "pods"
     fi
 }
@@ -367,12 +436,43 @@ view_logs() {
     fi
 }
 
+scale_object() {
+    local resource_type="$1"
+    local object_name="$2"
+
+    echo "====================================================================="
+    echo "Current replicas for $resource_type/$object_name:"
+    kubectl get "$resource_type" "$object_name" -o jsonpath='{.spec.replicas}'
+    echo
+    echo -n "Enter new replica count: "
+    read -r replicas
+
+    if [[ "$replicas" =~ ^[0-9]+$ ]]; then
+        kubectl scale "$resource_type" "$object_name" --replicas="$replicas"
+    else
+        echo "Invalid replica count"
+        echo "Press any key to continue..."
+        read -n 1 -s
+    fi
+}
+
+get_yaml() {
+    local resource_type="$1"
+    local object_name="$2"
+
+    echo "====================================================================="
+    echo "Getting YAML for $resource_type/$object_name:"
+
+    kubectl get $resource_type "$object_name" -o yaml | less
+}
+
 # ============================================================================
 # Action Dispatcher
 # ============================================================================
 dispatch() {
     local action="$1"
     local target="$2"
+
     load_state
 
     case "$action" in
@@ -383,47 +483,93 @@ dispatch() {
             save_state "pods"
             switch_context "$target"
             refresh_cache
+        elif [[ "$MODE" == "resources" ]]; then
+            # Extract just the resource type from the first column
+            local resource_type=$(echo "$target" | awk '{print $1}')
+            save_state "objects" "" "$resource_type"
+            refresh_objects_cache "$resource_type"
+        elif [[ "$MODE" == "objects" ]]; then
+            # For now, just describe the object
+            describe_object "$RESOURCE_TYPE" "$target"
         fi
         ;;
     exec)
         if [[ "$MODE" == "pods" ]]; then
             exec_shell "$target"
-        else
+        elif [[ "$MODE" == "containers" ]]; then
             exec_shell "$POD_NAME" "$target"
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" == "pods" ]]; then
+            exec_shell "$target"
         fi
         ;;
     describe)
         if [[ "$MODE" == "pods" ]]; then
-            describe_resource "pod" "$target"
-        else
-            describe_resource "container" "$target"
+            describe_object "pod" "$target"
+        elif [[ "$MODE" == "containers" ]]; then
+            describe_object "container" "$target"
+        elif [[ "$MODE" == "objects" ]]; then
+            describe_object "$RESOURCE_TYPE" "$target"
         fi
         ;;
     delete)
-        [[ "$MODE" == "pods" ]] && delete_pod "$target" && refresh_cache
-        ;;
-    copy)
-        copy_to_clipboard "$target"
+        if [[ "$MODE" == "pods" ]]; then
+            delete_object "pod" "$target" && refresh_cache
+        elif [[ "$MODE" == "objects" ]]; then
+            delete_object "$RESOURCE_TYPE" "$target" && refresh_objects_cache "$RESOURCE_TYPE"
+        fi
         ;;
     logs)
         if [[ "$MODE" == "pods" ]]; then
             view_logs "$target"
-        else
+        elif [[ "$MODE" == "containers" ]]; then
             view_logs "$POD_NAME" "$target"
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" == "pods" ]]; then
+            view_logs "$target"
         fi
         ;;
     refresh)
-        refresh_cache
+        if [[ "$MODE" == "objects" ]]; then
+            refresh_objects_cache "$RESOURCE_TYPE"
+        else
+            refresh_cache
+        fi
         ;;
     back)
         if [[ "$MODE" == "containers" ]]; then
             save_state "pods"
         elif [[ "$MODE" == "contexts" ]]; then
             save_state "pods"
+        elif [[ "$MODE" == "resources" ]]; then
+            save_state "pods"
+        elif [[ "$MODE" == "objects" ]]; then
+            save_state "resources"
         fi
         ;;
     contexts)
         save_state "contexts"
+        ;;
+    resources)
+        save_state "resources"
+        ;;
+    scale)
+        if [[ "$MODE" == "objects" ]] && [[ "$RESOURCE_TYPE" =~ ^(Deployments|StatefulSets|DaemonSets|ReplicaSets)$ ]]; then
+            scale_object "$RESOURCE_TYPE" "$target"
+            refresh_objects_cache "$RESOURCE_TYPE"
+        fi
+        ;;
+    yaml)
+        if [[ "$MODE" == "pods" ]]; then
+            get_yaml "pod" "$target"
+        elif [[ "$MODE" == "containers" ]]; then
+            # For containers, we need to get the pod YAML
+            get_yaml "pod" "$POD_NAME"
+        elif [[ "$MODE" == "objects" ]]; then
+            get_yaml "$RESOURCE_TYPE" "$target"
+        else
+            echo "YAML view not available in this mode"
+            echo "Press any key to continue..."
+            read -n 1 -s
+        fi
         ;;
     esac
 }
@@ -440,15 +586,17 @@ cleanup() {
 # Export Functions for FZF
 # ============================================================================
 export -f colorize highlight_logs load_state save_state
-export -f show_pod_header show_container_header show_context_header
-export -f list_pods list_containers list_contexts
-export -f refresh_cache display_data dispatch
-export -f copy_to_clipboard exec_shell delete_pod describe_resource view_logs
+export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
+export -f list_pods list_containers list_contexts list_resources list_objects
+export -f refresh_cache refresh_objects_cache display_data dispatch
+export -f exec_shell delete_object describe_object view_logs
 export -f get_contexts switch_context get_current_namespace
+export -f scale_object get_yaml
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
 export LIB_PATH CACHE_DIR CONTEXT NAMESPACE STATE_FILE MODE POD_NAME
+export RESOURCE_TYPE OBJECT_NAME
 
 # Setup
 check_dependencies "kubectl" "fzf" "awk" "curl"
@@ -474,8 +622,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Start background refresh
     start_background_refresh
 
-    # Run FZF interface
-    # Note: CTRL-L is mapped to END in my terminal
+    # Run FZF interface with dynamic bindings based on mode
     display_data | fzf \
         --no-multi \
         --ansi \
@@ -485,13 +632,63 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --header-lines=3 \
         --listen \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
-        --bind="enter:transform:grep -q MODE=containers $STATE_FILE && echo 'execute(dispatch logs {1})+reload(display_data)' || grep -q MODE=contexts $STATE_FILE && echo 'execute(dispatch enter {1})+change-prompt(Pods> )+reload(display_data)+clear-query' || echo 'change-prompt(Containers> )+execute-silent(dispatch enter {1})+reload(display_data)+clear-query'" \
-        --bind="ctrl-e:execute(dispatch exec {1})+reload(display_data)" \
+        --bind="ctrl-q:abort" \
+        --bind="enter:transform:
+            if grep -q MODE=containers \$STATE_FILE; then
+                echo 'execute(dispatch logs {1})+reload(display_data)'
+            elif grep -q MODE=contexts \$STATE_FILE; then
+                echo 'execute(dispatch enter {1})+change-prompt(Pods> )+reload(display_data)+clear-query'
+            elif grep -q MODE=resources \$STATE_FILE; then
+                echo 'execute(dispatch enter {1})+change-prompt({1}> )+reload(display_data)+clear-query'
+            elif grep -q MODE=objects \$STATE_FILE; then
+                echo 'execute(dispatch describe {1})+reload(display_data)'
+            else
+                echo 'change-prompt(Containers> )+execute-silent(dispatch enter {1})+reload(display_data)+clear-query'
+            fi" \
+        --bind="ctrl-e:transform:
+            if grep -q MODE=pods \$STATE_FILE; then
+                echo 'execute(dispatch exec {1})+reload(display_data)'
+            elif grep -q MODE=containers \$STATE_FILE; then
+                echo 'execute(dispatch exec {1})+reload(display_data)'
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE_TYPE=pods \$STATE_FILE; then
+                echo 'execute(dispatch exec {1})+reload(display_data)'
+            else
+                echo 'execute:echo Resource does not support exec'
+            fi" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
-        --bind="ctrl-k:execute(dispatch delete {1})+reload(display_data)" \
-        --bind="ctrl-y:execute-silent(dispatch copy {1})+reload(display_data)" \
-        --bind="ctrl-r:execute-silent(dispatch refresh)+reload(display_data)" \
-        --bind="ctrl-s:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
-        --bind="end:execute(dispatch logs {1})+reload(display_data)" \
-        --bind="esc:transform:grep -q MODE=pods $STATE_FILE && echo abort || echo 'change-prompt(Pods> )+execute-silent(dispatch back)+reload(display_data)+clear-query'"
+        --bind="ctrl-k:transform:
+            if grep -q MODE=objects \$STATE_FILE || grep -q MODE=pods \$STATE_FILE; then
+                echo 'execute(dispatch delete {1})+reload(display_data)'
+            else
+                echo 'execute:echo Delete not available in this view'
+            fi" \
+        --bind="ctrl-y:execute(dispatch yaml {1})+reload(display_data)" \
+        --bind="ctrl-c:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
+        --bind="ctrl-s:transform:
+            if grep -q MODE=objects \$STATE_FILE && grep -q -E 'RESOURCE_TYPE=(deployments|statefulsets|daemonsets|replicasets)' \$STATE_FILE; then
+                echo 'execute(dispatch scale {1})+reload(display_data)'
+            else
+                echo 'execute:echo Scale not available for this resource type'
+            fi" \
+        --bind="ctrl-r:change-prompt(Resources> )+execute-silent(dispatch resources)+reload(display_data)+clear-query" \
+        --bind="ctrl-l:transform:
+            if grep -q MODE=pods \$STATE_FILE; then
+                echo 'execute(dispatch logs {1})+reload(display_data)'
+            elif grep -q MODE=containers \$STATE_FILE; then
+                echo 'execute(dispatch logs {1})+reload(display_data)'
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE_TYPE=pods \$STATE_FILE; then
+                echo 'execute(dispatch logs {1})+reload(display_data)'
+            else
+                echo 'execute:echo Logs not available for this resource type'
+            fi" \
+        --bind="esc:transform:
+            if grep -q MODE=pods \$STATE_FILE; then
+                echo abort
+            else
+                if grep -q MODE=objects \$STATE_FILE; then
+                    echo 'change-prompt(Resources> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
+                else
+                    echo 'change-prompt(Pods> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
+                fi
+            fi"
 fi
