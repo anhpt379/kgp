@@ -1,11 +1,11 @@
-# kgp - kubectl get pods (and more)
+# `kgp` - kubectl get pods (and more)
 
 **Lightning-fast, interactive Kubernetes resource browser powered by fzf**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Shell](https://img.shields.io/badge/shell-bash-green.svg)](https://www.gnu.org/software/bash/)
 
-## 🚀 Why kgp?
+## 🚀 Why `kgp`?
 
 **Instant access to your Kubernetes resources.** No loading screens, no bloat, just pure speed.
 
@@ -53,5 +53,5 @@ export KGP_DEBUG=1                 # Enable debug output
 
 ## 🙏 Acknowledgments
 
-- [fzf](https://github.com/junegunn/fzf) - The incredible fuzzy finder that powers kgp
-- [kubectl](https://kubernetes.io/docs/reference/kubectl/) - The Kubernetes CLI foundation
+- [fzf](https://github.com/junegunn/fzf) - The incredible fuzzy finder that powers `kgp`
+- [kubectl](https://kubernetes.io/docs/reference/kubectl/) - Kubernetes command-line interface
