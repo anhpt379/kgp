@@ -425,13 +425,27 @@ delete_object() {
 
     echo "====================================================================="
     echo "You are about to delete $resource: $object"
-    read -p "Are you sure? [y/N] " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    read -p "Confirm delete? (yes(y)/no(n)/force(f)) [no]: " confirm
+
+    # Normalize input to lowercase
+    confirm="${confirm,,}"
+
+    case "$confirm" in
+    y | yes)
+        kubectl delete "$resource" "$object"
+        ;;
+    f | force)
+        kubectl delete "$resource" "$object" --force --grace-period=0
+        ;;
+    n | no | "")
         echo "Aborted."
         return 1
-    fi
-
-    kubectl delete "$resource" "$object"
+        ;;
+    *)
+        echo "Invalid input. Aborted."
+        return 1
+        ;;
+    esac
 }
 
 describe_object() {
