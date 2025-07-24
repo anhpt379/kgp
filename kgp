@@ -350,6 +350,8 @@ $(colorize CYAN "Navigation:")
   $(colorize YELLOW "CTRL-C")        Quit
   $(colorize YELLOW "CTRL-P")        Up
   $(colorize YELLOW "CTRL-N")        Down
+  $(colorize YELLOW "CTRL-B")        Page Up
+  $(colorize YELLOW "CTRL-F")        Page Down
 
 $(colorize CYAN "Views:")
   $(colorize YELLOW "CTRL-S")        Switch context
@@ -766,6 +768,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --bind="ctrl-c:abort" \
         --bind="ctrl-n:down" \
         --bind="ctrl-p:up" \
+        --bind="ctrl-f:page-down" \
+        --bind="ctrl-b:page-up" \
         --bind="ctrl-r:execute-silent(refresh_cache)+reload(display_data)" \
         --bind="enter:transform:
             if grep -q MODE=containers \$STATE_FILE; then
