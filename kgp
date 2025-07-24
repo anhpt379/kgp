@@ -654,7 +654,7 @@ export LIB_PATH CACHE_BASE_DIR CACHE_DIR
 export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
 # Setup
-check_dependencies "kubectl" "fzf" "awk" "curl"
+check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "sort"
 LIB_PATH=$(find_library)
 
 # Initialize environment
