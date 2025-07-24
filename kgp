@@ -297,8 +297,8 @@ $(colorize CYAN "Namespace:")
 $(colorize CYAN "Navigation / Views:")
   $(colorize YELLOW "ENTER")         Open (containers, describe, select)
   $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-Q")  Back / Quit
-  $(colorize YELLOW "CTRL-C")        Switch context
   $(colorize YELLOW "CTRL-R")        Browse resource types
+  $(colorize YELLOW "CTRL-S")        Switch context
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
 $(colorize CYAN "Actions:")
@@ -718,12 +718,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute:echo Delete not available in this view'
             fi" \
         --bind="ctrl-y:execute(dispatch yaml {1})+reload(display_data)" \
-        --bind="ctrl-c:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
         --bind="ctrl-s:transform:
             if grep -q MODE=objects \$STATE_FILE && grep -q -E 'RESOURCE=(deployments|statefulsets|daemonsets|replicasets)' \$STATE_FILE; then
                 echo 'execute(dispatch scale {1})+reload(display_data)'
             else
-                echo 'execute:echo Scale not available for this resource type'
+                echo 'change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query'
             fi" \
         --bind="ctrl-r:change-prompt(Resources> )+execute-silent(dispatch resources)+reload(display_data)+clear-query" \
         --bind="ctrl-l:transform:
