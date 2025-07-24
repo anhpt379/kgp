@@ -307,6 +307,7 @@ $(colorize CYAN "Views:")
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
 $(colorize CYAN "Actions:")
+  $(colorize YELLOW "CTRL-R")        Refresh cache
   $(colorize YELLOW "CTRL-L")        View logs
   $(colorize YELLOW "CTRL-E")        Exec into pod/container
   $(colorize YELLOW "CTRL-D")        Describe resource
@@ -696,6 +697,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --bind="ctrl-c:abort" \
         --bind="ctrl-n:down" \
         --bind="ctrl-p:up" \
+        --bind="ctrl-r:execute-silent(refresh_cache)+reload(display_data)" \
         --bind="enter:transform:
             if grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
