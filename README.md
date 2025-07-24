@@ -53,7 +53,20 @@ export KGP_CACHE_DIR="/tmp/kgp"    # Cache location
 export KGP_DEBUG=1                 # Enable debug output
 ```
 
-## 🙏 Acknowledgments
+## ❓ FAQ
 
-- [fzf](https://github.com/junegunn/fzf) - The incredible fuzzy finder that powers `kgp`
-- [kubectl](https://kubernetes.io/docs/reference/kubectl/) - Kubernetes command-line interface
+### Why is there no "switch namespace" action?
+
+This is an intentional design decision. `kgp` focuses on speed and simplicity,
+and avoids managing mutable global state like the current namespace.
+
+Instead, it's recommended to create a context with your desired namespace:
+
+- Create a new context with your desired namespace:
+
+  ```bash
+  kubectl config set-context your-new-context --namespace="<namespace>" --cluster="<cluster>" --user="<user>"
+  ```
+
+- Then use `CTRL-S` in `kgp` to switch between contexts, including those with
+  specific namespaces.
