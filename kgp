@@ -267,12 +267,12 @@ show_container_header() {
 
 show_context_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT")"
-    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-C") quit  $(colorize MAGENTA "?") help"
 }
 
 show_resources_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-Q") quit  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "CTRL-C") quit  $(colorize MAGENTA "?") help"
 }
 
 show_objects_header() {
@@ -296,8 +296,8 @@ $(colorize CYAN "Namespace:")
 
 $(colorize CYAN "Navigation / Views:")
   $(colorize YELLOW "ENTER")         Open (containers, describe, select)
-  $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-Q")  Back / Quit
   $(colorize YELLOW "CTRL-R")        Browse resource types
+  $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-C")  Back / Quit
   $(colorize YELLOW "CTRL-S")        Switch context
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
@@ -687,7 +687,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --preview-window=right,40%,hidden \
         --bind="?:toggle-preview,ctrl-h:toggle-preview" \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
-        --bind="ctrl-q:abort" \
+        --bind="ctrl-c:abort" \
         --bind="enter:transform:
             if grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
