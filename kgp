@@ -19,6 +19,7 @@ readonly CACHE_REFRESH_INTERVAL="${KGP_CACHE_REFRESH:-30}"
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
+readonly ORANGE='\033[38;5;214m'
 readonly CYAN='\033[0;36m'
 readonly GRAY='\033[0;90m'
 readonly MAGENTA='\033[0;35m'
@@ -90,6 +91,7 @@ colorize() {
     RED) color_code="$RED" ;;
     GREEN) color_code="$GREEN" ;;
     YELLOW) color_code="$YELLOW" ;;
+    ORANGE) color_code="$ORANGE" ;;
     CYAN) color_code="$CYAN" ;;
     GRAY) color_code="$GRAY" ;;
     MAGENTA) color_code="$MAGENTA" ;;
@@ -129,7 +131,7 @@ highlight_logs() {
             }
 
             # Print with colors: timestamp first, then container, then message
-            printf "\033[2m%s\033[0m \033[%dm%s\033[0m %s\n",
+            printf "\033[0;90m%s\033[0m \033[%dm%s\033[0m %s\n",
                 timestamp, container_colors[container], container, message
         } else {
             # Print non-matching lines as-is
@@ -308,6 +310,23 @@ show_less_help() {
     if [[ "$answer" == "n" ]]; then
         touch "${CACHE_BASE_DIR}/.less_help_dismissed"
     fi
+}
+
+print_stream_closed_eof() {
+    local pod="$1"
+    local container="$2"
+
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%S.%NZ")
+
+    local msg
+    if [[ -n "$container" ]]; then
+        msg="stream closed EOF for ${pod} (${container})"
+    else
+        msg="stream closed EOF for ${pod}"
+    fi
+
+    echo "$(colorize GRAY "${timestamp}") $(colorize ORANGE "\033[1m$msg\033[0m")"
 }
 
 less_help() {
@@ -529,11 +548,16 @@ view_logs() {
 
     [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
-    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less_help -R +F || true); then
+    if {
+        kubectl logs "${args[@]}" 2>&1
+        print_stream_closed_eof "$pod" "$container"
+    } | highlight_logs | (less_help -R +F || true); then
         return 0
     else
-        echo "Falling back to --previous logs..." >&2
-        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less_help -R +F || true)
+        {
+            kubectl logs "${args[@]}" --previous 2>&1
+            print_stream_closed_eof "$pod" "$container"
+        } | highlight_logs | (less_help -R +F || true)
     fi
 }
 
@@ -692,10 +716,10 @@ export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
 export -f exec_shell delete_object describe_object view_logs
 export -f get_contexts switch_context get_current_namespace
-export -f scale_object edit_object show_help show_less_help less_help
+export -f scale_object edit_object show_help show_less_help less_help print_stream_closed_eof
 
 # Export variables
-export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
+export RED GREEN YELLOW ORANGE CYAN GRAY MAGENTA WHITE RESET
 export LIB_PATH CACHE_BASE_DIR CACHE_DIR
 export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
