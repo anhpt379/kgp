@@ -294,9 +294,14 @@ $(colorize CYAN "Context:")
 $(colorize CYAN "Namespace:")
   $(colorize YELLOW "$NAMESPACE")
 
-$(colorize CYAN "Navigation / Views:")
+$(colorize CYAN "Navigation:")
   $(colorize YELLOW "ENTER")         Open (containers, describe, select)
-  $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-C")  Back / Quit
+  $(colorize YELLOW "ESC")           Back
+  $(colorize YELLOW "CTRL-C")        Quit
+  $(colorize YELLOW "CTRL-P")        Up
+  $(colorize YELLOW "CTRL-N")        Down
+
+$(colorize CYAN "Views:")
   $(colorize YELLOW "CTRL-S")        Switch context
   $(colorize YELLOW "CTRL-A")        Browse all resources
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
@@ -307,7 +312,7 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-D")        Describe resource
   $(colorize YELLOW "CTRL-Y")        Edit YAML
   $(colorize YELLOW "CTRL-K")        Delete resource
-  $(colorize YELLOW "CTRL-S")        Scale (only Deployments, StatefulSets, etc.)
+  $(colorize YELLOW "CTRL-S")        Scale (Deployments, StatefulSets, etc.)
 
 EOF
 }
@@ -686,8 +691,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --preview="show_help" \
         --preview-window=right,40%,hidden \
         --bind="?:toggle-preview,ctrl-h:toggle-preview" \
+        --bind="change:first" \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
         --bind="ctrl-c:abort" \
+        --bind="ctrl-n:down" \
+        --bind="ctrl-p:up" \
         --bind="enter:transform:
             if grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
