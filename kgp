@@ -296,9 +296,9 @@ $(colorize CYAN "Namespace:")
 
 $(colorize CYAN "Navigation / Views:")
   $(colorize YELLOW "ENTER")         Open (containers, describe, select)
-  $(colorize YELLOW "CTRL-R")        Browse resource types
   $(colorize YELLOW "ESC") / $(colorize YELLOW "CTRL-C")  Back / Quit
   $(colorize YELLOW "CTRL-S")        Switch context
+  $(colorize YELLOW "CTRL-A")        Browse all resources
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
 $(colorize CYAN "Actions:")
@@ -724,7 +724,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             else
                 echo 'change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query'
             fi" \
-        --bind="ctrl-r:change-prompt(Resources> )+execute-silent(dispatch resources)+reload(display_data)+clear-query" \
+        --bind="ctrl-a:change-prompt(Resources> )+execute-silent(dispatch resources)+reload(display_data)+clear-query" \
         --bind="ctrl-l:transform:
             if grep -q MODE=pods \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
