@@ -287,6 +287,36 @@ show_objects_header() {
     echo "$actions"
 }
 
+show_less_help() {
+    echo "Logs will be viewed using \`less\`. Bellow are some useful keys:"
+    echo "  q          = quit"
+    echo "  /          = search forward"
+    echo "  ?          = search backward"
+    echo "  n          = repeat search forward"
+    echo "  N          = repeat search backward"
+    echo "  g          = go to beginning of file"
+    echo "  G          = go to end of file"
+    echo "  f or SPACE = page down"
+    echo "  b          = page up"
+    echo "  F          = follow mode (like tail -f)"
+    echo "  CTRL-C     = stop follow mode"
+    echo
+    echo -n "Show this help again next time? (Y/n): "
+    read -r -n1 answer </dev/tty
+    answer=${answer,,} # to lowercase
+
+    if [[ "$answer" == "n" ]]; then
+        touch "${CACHE_BASE_DIR}/.less_help_dismissed"
+    fi
+}
+
+less_help() {
+    if [[ ! -f "${CACHE_BASE_DIR}/.less_help_dismissed" ]]; then
+        show_less_help
+    fi
+    less "$@"
+}
+
 show_help() {
     cat <<EOF
 $(colorize CYAN "Context:")
@@ -456,7 +486,7 @@ describe_object() {
     echo "Describing $resource: $object"
 
     if [[ "$resource" == "pod" ]]; then
-        kubectl describe pod "$object" | less -R +F
+        kubectl describe pod "$object" | less_help -R +F
     elif [[ "$resource" == "container" ]]; then
         load_state
         kubectl describe pod "$POD" |
@@ -470,9 +500,9 @@ describe_object() {
                 found && /^  [^ ]+:$/ && $0 !~ "^    " { found = 0 }
                 found && /^[^ ]/ { found = 0; in_containers = 0 }
                 found { print }
-            ' | less -R +F
+            ' | less_help -R +F
     else
-        kubectl describe "$resource" "$object" | less -R +F
+        kubectl describe "$resource" "$object" | less_help -R +F
     fi
 }
 
@@ -499,11 +529,11 @@ view_logs() {
 
     [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
-    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less -R +F || true); then
+    if kubectl logs "${args[@]}" 2>&1 | highlight_logs | (less_help -R +F || true); then
         return 0
     else
         echo "Falling back to --previous logs..." >&2
-        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less -R +F || true)
+        kubectl logs "${args[@]}" --previous 2>&1 | highlight_logs | (less_help -R +F || true)
     fi
 }
 
@@ -662,7 +692,7 @@ export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
 export -f exec_shell delete_object describe_object view_logs
 export -f get_contexts switch_context get_current_namespace
-export -f scale_object edit_object show_help
+export -f scale_object edit_object show_help show_less_help less_help
 
 # Export variables
 export RED GREEN YELLOW CYAN GRAY MAGENTA WHITE RESET
