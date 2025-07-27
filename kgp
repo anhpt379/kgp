@@ -304,7 +304,7 @@ show_less_help() {
     echo "  CTRL-C     = stop follow mode"
     echo
     echo -n "Show this help again next time? (Y/n): "
-    read -r -n1 answer </dev/tty
+    read -r -n 1 answer </dev/tty
     answer=${answer,,} # to lowercase
 
     if [[ "$answer" == "n" ]]; then
@@ -476,7 +476,7 @@ delete_object() {
 
     echo "====================================================================="
     echo "You are about to delete $resource: $object"
-    read -p "Confirm delete? (yes(y)/no(n)/force(f)) [no]: " confirm
+    read -p -n 1 "Confirm delete? (y/n/f) [n]: " confirm
 
     # Normalize input to lowercase
     confirm="${confirm,,}"
