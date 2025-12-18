@@ -366,6 +366,7 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-Y")        Edit YAML
   $(colorize YELLOW "CTRL-K")        Delete resource
   $(colorize YELLOW "CTRL-S")        Scale (Deployments, StatefulSets, etc.)
+  $(colorize YELLOW "CTRL-G")        Create debug pod (from existing pod)
 
 EOF
 }
@@ -593,6 +594,32 @@ edit_object() {
     kubectl edit $resource "$object"
 }
 
+create_debug_pod() {
+    local pod="$1"
+    local debug_pod_name="${pod}-debug"
+    
+    echo "====================================================================="
+    echo "Creating debug pod from: $pod"
+    echo "Debug pod name: $debug_pod_name"
+    echo -n "Enter container name to modify [app]: "
+    read -r container_name
+    container_name="${container_name:-app}"
+    
+    echo "Creating $debug_pod_name with container '$container_name' running 'sleep 3600'..."
+    
+    if kubectl get pod "$pod" -o json | \
+        jq --arg name "$debug_pod_name" --arg container "$container_name" \
+        '.metadata |= {name: $name, namespace: .namespace, labels: .labels} | .spec |= (del(.nodeName) | .containers |= map(if .name == $container then .args = ["sleep", "3600"] else . end))' | \
+        kubectl apply -f -; then
+        echo "Debug pod '$debug_pod_name' created successfully!"
+        refresh_cache
+    else
+        echo "Failed to create debug pod"
+    fi
+    echo "Press any key to continue..."
+    read -n 1 -s
+}
+
 # ============================================================================
 # Action Dispatcher
 # ============================================================================
@@ -698,6 +725,13 @@ dispatch() {
             read -n 1 -s
         fi
         ;;
+    debug)
+        if [[ "$MODE" == "pods" ]]; then
+            create_debug_pod "$target"
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" == "pods" ]]; then
+            create_debug_pod "$target"
+        fi
+        ;;
     esac
 }
 
@@ -716,7 +750,7 @@ export -f debug colorize highlight_logs load_state save_state
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
-export -f exec_shell delete_object describe_object view_logs
+export -f exec_shell delete_object describe_object view_logs create_debug_pod 
 export -f get_contexts switch_context get_current_namespace
 export -f scale_object edit_object show_help show_less_help less_help print_stream_closed_eof
 
@@ -726,7 +760,7 @@ export LIB_PATH CACHE_BASE_DIR CACHE_DIR
 export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
 # Setup
-check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "sort"
+check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "sort" "jq"
 LIB_PATH=$(find_library)
 
 # Initialize environment
@@ -817,6 +851,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
             else
                 echo 'execute:echo Logs not available for this resource type'
+            fi" \
+        --bind="ctrl-g:transform:
+            if grep -q MODE=pods \$STATE_FILE; then
+                echo 'execute(dispatch debug {1})+reload(display_data)'
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE=pods \$STATE_FILE; then
+                echo 'execute(dispatch debug {1})+reload(display_data)'
+            else
+                echo 'execute:echo Debug pod creation only available for pods'
             fi" \
         --bind="esc:transform:
             if grep -q MODE=pods \$STATE_FILE; then
