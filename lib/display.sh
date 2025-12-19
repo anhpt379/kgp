@@ -69,14 +69,17 @@ EOF
 
 list_pods() {
     local pods_file="${CACHE_DIR}/pods"
-    [[ ! -f "$pods_file" ]] && refresh_cache
     show_pod_header
-    cat "$pods_file"
+    if [[ -f "$pods_file" ]]; then
+        cat "$pods_file"
+    else
+        echo "NAME  READY  STATUS  RESTARTS  AGE"
+        echo "Loading pod data..."
+    fi
 }
 
 list_containers() {
     local containers_file="${CACHE_DIR}/containers"
-    [[ ! -f "$containers_file" ]] && refresh_cache
     show_container_header
     head -1 "$containers_file" | awk '{print substr($0, index($0, $2))}'
     grep "${POD}" "$containers_file" | awk '{print substr($0, index($0, $2))}'

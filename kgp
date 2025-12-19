@@ -103,6 +103,9 @@ STATE_FILE="${CACHE_BASE_DIR}/.state"
 
 debug "Initialized with CONTEXT=$CONTEXT, NAMESPACE=$NAMESPACE, CACHE_DIR=$CACHE_DIR"
 
+# Initialize cache directory and placeholder files
+initialize_cache
+
 # Initialize state
 save_state "pods"
 

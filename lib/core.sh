@@ -5,7 +5,10 @@
 
 debug() {
     if [[ "${KGP_DEBUG:-0}" == "1" ]]; then
-        echo "[DEBUG] $*" >&2
+        local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        local message="[$timestamp] [DEBUG] $*"
+
+        echo "$message" >>"/tmp/kgp/debug.log"
     fi
     return 0
 }
@@ -25,12 +28,12 @@ check_dependencies() {
 
 copy_to_clipboard() {
     local text="$1"
-    
+
     if [[ -z "$text" ]]; then
         echo "Nothing to copy"
         return 1
     fi
-    
+
     # Try different clipboard utilities in order of preference
     if command -v pbcopy >/dev/null 2>&1; then
         # macOS
@@ -45,7 +48,7 @@ copy_to_clipboard() {
         echo "Error: No clipboard utility found (pbcopy, xclip or wl-copy)"
         return 1
     fi
-    
+
     return 0
 }
 
