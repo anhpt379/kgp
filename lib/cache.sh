@@ -56,7 +56,6 @@ refresh_cache() {
             
             echo -e "Loading..." > "${CACHE_DIR}/containers"
             rm -f "$temp_file"
-            return 1
         fi
     elif [[ "$MODE" == "objects" ]] && [[ -n "$RESOURCE" ]]; then
         refresh_objects_cache "$RESOURCE"
@@ -77,28 +76,28 @@ refresh_objects_cache() {
         debug "Failed to fetch $resource data: kubectl command failed"
         echo "Error: Unable to fetch $resource data. Check cluster connection." > "$cache_file"
         rm -f "$temp_file"
-        return 1
     fi
 }
 
 start_background_refresh() {
     debug "Starting background refresh with interval: $CACHE_REFRESH_INTERVAL seconds"
 
+    # Initial delay to allow FZF to fully initialize and set FZF_PORT
+    (sleep 1
     while true; do
-        sleep "$CACHE_REFRESH_INTERVAL"
         debug "Background refresh: starting cache update..."
         load_state
-        refresh_cache
+        refresh_cache || debug "Background refresh: refresh_cache failed, continuing..."
 
         # Trigger reload if FZF is running
-        if [[ -n "$FZF_PORT" ]] && [[ "$FZF_PORT" =~ ^[0-9]+$ ]]; then
+        if [[ -n "${FZF_PORT:-}" ]] && [[ "${FZF_PORT:-}" =~ ^[0-9]+$ ]]; then
             curl -sf -XPOST "http://localhost:${FZF_PORT}" -d 'reload(display_data)' 2>/dev/null && debug "Background refresh: triggered fzf reload" || debug "Background refresh: failed to trigger fzf reload (port: $FZF_PORT)"
         else
             debug "Background refresh: FZF_PORT not available yet"
         fi
 
         sleep "$CACHE_REFRESH_INTERVAL"
-    done &
+    done) &
 
     BG_REFRESH_PID=$!
     debug "Background refresh started with PID: $BG_REFRESH_PID"
