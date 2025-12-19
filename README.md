@@ -23,6 +23,7 @@
 - **Real-time updates** - Live resource status with smart caching
 - **Multi-context aware** - Switch between clusters seamlessly
 - **Essential operations** - exec, logs, describe, scale, delete
+- **Debug pod creation** - Clone pods with sleep command for troubleshooting
 - **Keyboard-driven** - Optimized for speed with intuitive shortcuts
 - **Zero configuration** - Works out of the box with kubectl
 
