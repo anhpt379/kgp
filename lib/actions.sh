@@ -6,12 +6,12 @@
 exec_shell() {
     local pod="$1"
     local container="${2:-}"
-    local exec_cmd="kubectl exec -it $pod"
 
+    clear
+    local exec_cmd="kubectl exec -it $pod"
     [[ -n "$container" ]] && exec_cmd+=" -c $container"
     exec_cmd+=" -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
 
-    echo "====================================================================="
     echo "Executing into ${container:+container: $container in }pod: $pod"
 
     if eval "$exec_cmd"; then
@@ -28,9 +28,8 @@ delete_object() {
     local resource="$1"
     local object="$2"
 
-    echo "====================================================================="
-    echo "You are about to delete $resource: $object"
     read -p -n 1 "Confirm delete? (y/n/f) [n]: " confirm
+    clear
 
     # Normalize input to lowercase
     confirm="${confirm,,}"
@@ -57,7 +56,7 @@ describe_object() {
     local resource="$1"
     local object="$2"
 
-    echo "====================================================================="
+    clear
     echo "Describing $resource: $object"
 
     if [[ "$resource" == "pod" ]]; then
@@ -84,8 +83,9 @@ describe_object() {
 view_logs() {
     local pod="$1"
     local container="${2:-}"
-    local args=("$pod" "--follow" "--prefix" "--timestamps")
 
+    clear
+    local args=("$pod" "--follow" "--prefix" "--timestamps")
     [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
     if {
@@ -105,7 +105,7 @@ scale_object() {
     local resource="$1"
     local object="$2"
 
-    echo "====================================================================="
+    clear
     echo "Current replicas for $resource/$object:"
     kubectl get "$resource" "$object" -o jsonpath='{.spec.replicas}'
     echo
@@ -125,7 +125,7 @@ edit_object() {
     local resource="$1"
     local object="$2"
 
-    echo "====================================================================="
+    clear
     echo "Editing $resource/$object"
     kubectl edit $resource "$object"
 }
@@ -134,7 +134,7 @@ create_debug_pod() {
     local pod="$1"
     local debug_pod_name="${pod}-debug"
 
-    echo "====================================================================="
+    clear
     echo "Creating debug pod from: $pod"
     echo "Debug pod name: $debug_pod_name"
     echo -n "Enter container name to modify [app]: "
