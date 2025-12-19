@@ -8,11 +8,10 @@ initialize_cache() {
     
     # Create initial loading placeholders
     if [[ ! -f "${CACHE_DIR}/pods" ]]; then
-        echo "$(colorize CYAN "⟳ Loading pod data from cluster $CONTEXT...")" > "${CACHE_DIR}/pods"
-        echo "$(colorize GRAY "  This may take a few seconds on first launch")" >> "${CACHE_DIR}/pods"
+        echo "$(colorize WHITE "Loading pod data from cluster $CONTEXT...")" > "${CACHE_DIR}/pods"
     fi
     if [[ ! -f "${CACHE_DIR}/containers" ]]; then
-        echo "⟳ Loading..." > "${CACHE_DIR}/containers"
+        echo "Loading..." > "${CACHE_DIR}/containers"
     fi
 }
 
@@ -34,25 +33,14 @@ refresh_cache() {
             "$FORMAT_PODS" -i "$raw_data_file" -o "$CACHE_DIR"
         else
             debug "Failed to fetch pod data: kubectl command failed"
-
-            # Check if this is first attempt (only has loading message)
-            local is_first_attempt=false
-            if grep -q "⟳ Loading" "${CACHE_DIR}/pods" 2>/dev/null; then
-                is_first_attempt=true
-            fi
             
             # Create error message files
-            if [[ "$is_first_attempt" == "true" ]]; then
-                echo "$(colorize RED "✗ Unable to connect to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
-                echo "$(colorize YELLOW "  Possible causes:")" >> "${CACHE_DIR}/pods"
-                echo "  • Cluster is unreachable or not running" >> "${CACHE_DIR}/pods"
-                echo "  • Invalid kubeconfig or credentials expired" >> "${CACHE_DIR}/pods"
-                echo "  • Network connectivity issues" >> "${CACHE_DIR}/pods"
-                echo "$(colorize CYAN "  Press F5 to retry")" >> "${CACHE_DIR}/pods"
-            else
-                echo "$(colorize RED "✗ Connection lost to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
-                echo "$(colorize CYAN "  Press F5 to retry")" >> "${CACHE_DIR}/pods"
-            fi
+            echo "$(colorize RED "✗ Unable to connect to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
+            echo "$(colorize YELLOW "  Possible causes:")" >> "${CACHE_DIR}/pods"
+            echo "  • Cluster is unreachable or not running" >> "${CACHE_DIR}/pods"
+            echo "  • Invalid kubeconfig or credentials expired" >> "${CACHE_DIR}/pods"
+            echo "  • Network connectivity issues" >> "${CACHE_DIR}/pods"
+            echo "$(colorize CYAN "  Press F5 to retry")" >> "${CACHE_DIR}/pods"
             
             echo -e "Loading..." > "${CACHE_DIR}/containers"
             rm -f "$temp_file"
