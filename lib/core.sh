@@ -10,17 +10,6 @@ debug() {
     return 0
 }
 
-find_library() {
-    for path in "${LIB_SEARCH_PATHS[@]}"; do
-        if [[ -f "$path" ]]; then
-            echo "$path"
-            return 0
-        fi
-    done
-    echo "Error: Cannot find format-pods.py library" >&2
-    exit 1
-}
-
 check_dependencies() {
     local missing=()
     for cmd in "$@"; do

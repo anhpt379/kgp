@@ -23,11 +23,11 @@ readonly MAGENTA='\033[0;35m'
 readonly WHITE='\033[0;37m'
 readonly RESET='\033[0m'
 
-# Library paths
-readonly LIB_SEARCH_PATHS=(
-    "${SCRIPT_DIR}/lib/format-pods.py"
-    "${HOME}/.local/lib/kgp/format-pods.py"
-    "/usr/local/lib/kgp/format-pods.py")
+# Library directory search paths
+readonly LIB_DIR_SEARCH_PATHS=(
+    "${SCRIPT_DIR}/lib"
+    "${HOME}/.local/lib/kgp"
+    "/usr/local/lib/kgp")
 
 # ============================================================================
 # Global Variables
@@ -40,19 +40,35 @@ NAMESPACE=""
 CACHE_DIR=""
 STATE_FILE=""
 BG_REFRESH_PID=""
-LIB_PATH=""
+FORMAT_PODS=""
 RESOURCE=""
 OBJECT=""
 
 # ============================================================================
+# Find Library Directory
+# ============================================================================
+find_lib_dir() {
+    for dir in "${LIB_DIR_SEARCH_PATHS[@]}"; do
+        if [[ -d "$dir" ]] && [[ -f "$dir/core.sh" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+    echo "Error: Cannot find library directory" >&2
+    exit 1
+}
+
+readonly LIB_DIR=$(find_lib_dir)
+
+# ============================================================================
 # Source Libraries
 # ============================================================================
-source "${SCRIPT_DIR}/lib/core.sh"
-source "${SCRIPT_DIR}/lib/k8s.sh"
-source "${SCRIPT_DIR}/lib/state.sh"
-source "${SCRIPT_DIR}/lib/cache.sh"
-source "${SCRIPT_DIR}/lib/display.sh"
-source "${SCRIPT_DIR}/lib/actions.sh"
+source "${LIB_DIR}/core.sh"
+source "${LIB_DIR}/k8s.sh"
+source "${LIB_DIR}/state.sh"
+source "${LIB_DIR}/cache.sh"
+source "${LIB_DIR}/display.sh"
+source "${LIB_DIR}/actions.sh"
 
 # ============================================================================
 # Export Functions for FZF
@@ -67,14 +83,14 @@ export -f scale_object edit_object show_help show_less_help less_help print_stre
 
 # Export variables
 export RED GREEN YELLOW ORANGE CYAN GRAY MAGENTA WHITE RESET
-export LIB_PATH CACHE_BASE_DIR CACHE_DIR
+export LIB_DIR FORMAT_PODS CACHE_BASE_DIR CACHE_DIR
 export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
 # ============================================================================
 # Setup
 # ============================================================================
 check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "sort" "jq"
-LIB_PATH=$(find_library)
+FORMAT_PODS="${LIB_DIR}/format-pods.py"
 
 # Initialize environment
 CONTEXT=$(get_current_context) || {

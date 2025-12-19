@@ -14,8 +14,8 @@ refresh_cache() {
 
         if kubectl get pods -o json >"$temp_file" 2>&1; then
             mv "$temp_file" "$raw_data_file"
-            debug "Successfully fetched pod data, processing with $LIB_PATH"
-            "$LIB_PATH" -i "$raw_data_file" -o "$CACHE_DIR"
+            debug "Successfully fetched pod data, processing with $FORMAT_PODS"
+            "$FORMAT_PODS" -i "$raw_data_file" -o "$CACHE_DIR"
         else
             echo "Failed to fetch pod data" >&2
             rm -f "$temp_file"
