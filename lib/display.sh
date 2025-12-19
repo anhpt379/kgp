@@ -55,7 +55,7 @@ $(colorize CYAN "Views:")
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
 $(colorize CYAN "Actions:")
-  $(colorize YELLOW "CTRL-R")        Refresh cache
+  $(colorize YELLOW "F5")            Refresh cache
   $(colorize YELLOW "CTRL-V")        View logs
   $(colorize YELLOW "CTRL-E")        Exec into pod/container
   $(colorize YELLOW "CTRL-D")        Describe resource

@@ -115,7 +115,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --bind="ctrl-p:up" \
         --bind="ctrl-f:page-down" \
         --bind="ctrl-b:page-up" \
-        --bind="ctrl-r:execute-silent(refresh_cache)+reload(display_data)" \
+        --bind="f5:execute-silent(refresh_cache)+reload(display_data)" \
         --bind="enter:transform:
             if grep -q MODE=containers \$STATE_FILE; then
                 echo 'execute(dispatch logs {1})+reload(display_data)'
