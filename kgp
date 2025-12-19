@@ -107,7 +107,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --listen \
         --preview="show_help" \
         --preview-window=right,40%,hidden \
-        --bind="?:toggle-preview,ctrl-h:toggle-preview" \
+        --bind="?:toggle-preview" \
         --bind="change:first" \
         --bind='start:execute-silent:echo "FZF_PORT=$FZF_PORT" >> $STATE_FILE' \
         --bind="ctrl-c:abort" \
@@ -139,7 +139,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute:echo Resource does not support exec'
             fi" \
         --bind="ctrl-d:execute(dispatch describe {1})+reload(display_data)" \
-        --bind="ctrl-k:transform:
+        --bind="ctrl-w:transform:
             if grep -q MODE=objects \$STATE_FILE || grep -q MODE=pods \$STATE_FILE; then
                 echo 'execute(dispatch delete {1})+reload(display_data)'
             else

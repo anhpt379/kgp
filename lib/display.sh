@@ -37,32 +37,32 @@ show_objects_header() {
 
 show_help() {
     cat <<EOF
-$(colorize CYAN "Context:")  $(colorize YELLOW "$CONTEXT")
+$(colorize CYAN "Context:  ")  $(colorize YELLOW "$CONTEXT")
 $(colorize CYAN "Namespace:")  $(colorize YELLOW "$NAMESPACE")
 
 $(colorize CYAN "Navigation:")
-  $(colorize YELLOW "ENTER")         Open (containers, describe, select)
-  $(colorize YELLOW "ESC")           Back
-  $(colorize YELLOW "CTRL-C")        Quit
-  $(colorize YELLOW "CTRL-P")        Up
-  $(colorize YELLOW "CTRL-N")        Down
-  $(colorize YELLOW "CTRL-B")        Page Up
-  $(colorize YELLOW "CTRL-F")        Page Down
+  $(colorize YELLOW "ENTER")          Open (containers, describe, select)
+  $(colorize YELLOW "ESC")            Back
+  $(colorize YELLOW "CTRL-C")         Quit
+  $(colorize YELLOW "CTRL-P")         Up
+  $(colorize YELLOW "CTRL-N")         Down
+  $(colorize YELLOW "CTRL-B")         Page Up
+  $(colorize YELLOW "CTRL-F")         Page Down
 
 $(colorize CYAN "Views:")
-  $(colorize YELLOW "CTRL-S")        Switch context
-  $(colorize YELLOW "CTRL-R")        Resources
-  $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
+  $(colorize YELLOW "CTRL-S")         Switch context
+  $(colorize YELLOW "CTRL-R")         Resources
+  $(colorize YELLOW "?")              Toggle this help
 
 $(colorize CYAN "Actions:")
-  $(colorize YELLOW "F5")            Refresh cache
-  $(colorize YELLOW "CTRL-V")        View logs
-  $(colorize YELLOW "CTRL-E")        Exec into pod/container
-  $(colorize YELLOW "CTRL-D")        Describe resource
-  $(colorize YELLOW "CTRL-Y")        Edit YAML
-  $(colorize YELLOW "CTRL-K")        Delete resource
-  $(colorize YELLOW "CTRL-S")        Scale (Deployments, StatefulSets, etc.)
-  $(colorize YELLOW "CTRL-G")        Create debug pod (from existing pod)
+  $(colorize YELLOW "F5")             Refresh cache
+  $(colorize YELLOW "CTRL-V")         View logs
+  $(colorize YELLOW "CTRL-E")         Exec into pod/container
+  $(colorize YELLOW "CTRL-D")         Describe resource
+  $(colorize YELLOW "CTRL-Y")         Edit YAML
+  $(colorize YELLOW "CTRL-W")         Delete resource
+  $(colorize YELLOW "CTRL-S")         Scale (Deployments, StatefulSets, etc.)
+  $(colorize YELLOW "CTRL-G")         Create debug pod (from existing pod)
 EOF
 }
 
