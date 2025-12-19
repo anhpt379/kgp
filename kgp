@@ -163,7 +163,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             else
                 echo 'execute:echo Logs not available for this resource type'
             fi" \
-        --bind="ctrl-g:transform:
+        --bind="ctrl-b:transform:
             if grep -q MODE=pods \$STATE_FILE; then
                 echo 'execute(dispatch debug {1})+reload(display_data)'
             elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE=pods \$STATE_FILE; then

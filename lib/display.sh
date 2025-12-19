@@ -62,7 +62,7 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-Y")         Edit YAML
   $(colorize YELLOW "CTRL-W")         Delete resource
   $(colorize YELLOW "CTRL-S")         Scale (Deployments, StatefulSets, etc.)
-  $(colorize YELLOW "CTRL-G")         Create debug pod (from existing pod)
+  $(colorize YELLOW "CTRL-B")         Create debug pod from existing pod (mnemonic: bash debug)
 EOF
 }
 
