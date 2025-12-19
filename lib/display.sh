@@ -51,7 +51,7 @@ $(colorize CYAN "Navigation:")
 
 $(colorize CYAN "Views:")
   $(colorize YELLOW "CTRL-S")        Switch context
-  $(colorize YELLOW "CTRL-A")        Browse all resources
+  $(colorize YELLOW "CTRL-R")        Resources
   $(colorize YELLOW "CTRL-H") / $(colorize YELLOW "?")    Toggle this help
 
 $(colorize CYAN "Actions:")
