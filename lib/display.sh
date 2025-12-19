@@ -56,7 +56,7 @@ $(colorize CYAN "Views:")
 
 $(colorize CYAN "Actions:")
   $(colorize YELLOW "F5")             Refresh cache
-  $(colorize YELLOW "CTRL-V")         View logs
+  $(colorize YELLOW "CTRL-O")         View output logs
   $(colorize YELLOW "CTRL-E")         Exec into pod/container
   $(colorize YELLOW "CTRL-D")         Describe resource
   $(colorize YELLOW "CTRL-Y")         Edit YAML
