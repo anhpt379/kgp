@@ -28,8 +28,8 @@ delete_object() {
     local resource="$1"
     local object="$2"
 
-    read -p -n 1 "Confirm delete? (y/n/f) [n]: " confirm
     clear
+    read -n 1 -p "Delete $resource: $object? (y/n/f) [n]: " confirm
 
     # Normalize input to lowercase
     confirm="${confirm,,}"
