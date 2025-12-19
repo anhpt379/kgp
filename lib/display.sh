@@ -5,12 +5,12 @@
 
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") containers  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD")"
-    echo "$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-L") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_context_header() {
@@ -56,7 +56,7 @@ $(colorize CYAN "Views:")
 
 $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-R")        Refresh cache
-  $(colorize YELLOW "CTRL-L")        View logs
+  $(colorize YELLOW "CTRL-V")        View logs
   $(colorize YELLOW "CTRL-E")        Exec into pod/container
   $(colorize YELLOW "CTRL-D")        Describe resource
   $(colorize YELLOW "CTRL-Y")        Edit YAML
