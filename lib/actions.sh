@@ -137,15 +137,13 @@ create_debug_pod() {
     clear
     echo "Creating debug pod from: $pod"
     echo "Debug pod name: $debug_pod_name"
-    echo -n "Enter container name to modify [app]: "
+    echo -n "Enter container name to debug [app]: "
     read -r container_name
     container_name="${container_name:-app}"
-
-    echo "Creating $debug_pod_name with container '$container_name' running 'sleep 3600'..."
-
+    echo "Overriding entrypoint for container '$container_name' to run 'sleep 3600' for debugging..."
     if kubectl get pod "$pod" -o json | \
         jq --arg name "$debug_pod_name" --arg container "$container_name" \
-        '.metadata |= {name: $name, namespace: .namespace, labels: .labels} | .spec |= (del(.nodeName) | .containers |= map(if .name == $container then .args = ["sleep", "3600"] else . end))' | \
+        '.metadata |= {name: $name, namespace: .namespace, labels: .labels} | .spec.containers |= map(if .name == $container then .command = ["sleep", "3600"] | del(.args) else . end)' | \
         kubectl apply -f -; then
         echo "Debug pod '$debug_pod_name' created successfully!"
         refresh_cache
