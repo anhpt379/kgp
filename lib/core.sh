@@ -34,6 +34,32 @@ check_dependencies() {
     fi
 }
 
+copy_to_clipboard() {
+    local text="$1"
+    
+    if [[ -z "$text" ]]; then
+        echo "Nothing to copy"
+        return 1
+    fi
+    
+    # Try different clipboard utilities in order of preference
+    if command -v pbcopy >/dev/null 2>&1; then
+        # macOS
+        echo -n "$text" | pbcopy
+    elif command -v xclip >/dev/null 2>&1; then
+        # Linux X11
+        echo -n "$text" | xclip -selection clipboard
+    elif command -v wl-copy >/dev/null 2>&1; then
+        # Linux Wayland
+        echo -n "$text" | wl-copy
+    else
+        echo "Error: No clipboard utility found (pbcopy, xclip or wl-copy)"
+        return 1
+    fi
+    
+    return 0
+}
+
 colorize() {
     local color="$1"
     local text="$2"

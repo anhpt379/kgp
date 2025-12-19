@@ -5,7 +5,7 @@
 
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "CTRL-S") switch contexts  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "CTRL-S") switch contexts  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "?") help"
 }
 
 show_container_header() {
@@ -15,17 +15,17 @@ show_container_header() {
 
 show_context_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT")"
-    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_resources_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "ESC") back"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back"
 
     case "$RESOURCE" in
     Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
@@ -56,13 +56,14 @@ $(colorize CYAN "Views:")
 
 $(colorize CYAN "Actions:")
   $(colorize YELLOW "F5")             Refresh cache
-  $(colorize YELLOW "CTRL-O")         View output logs
-  $(colorize YELLOW "CTRL-E")         Exec into pod/container
+  $(colorize YELLOW "CTRL-B")         Create debug pod from existing pod (mnemonic: bash debug)
   $(colorize YELLOW "CTRL-D")         Describe resource
+  $(colorize YELLOW "CTRL-E")         Exec into pod/container
+  $(colorize YELLOW "CTRL-O")         View output logs
+  $(colorize YELLOW "CTRL-S")         Scale (Deployments, StatefulSets, etc.)
   $(colorize YELLOW "CTRL-U")         Update YAML
   $(colorize YELLOW "CTRL-W")         Delete resource
-  $(colorize YELLOW "CTRL-S")         Scale (Deployments, StatefulSets, etc.)
-  $(colorize YELLOW "CTRL-B")         Create debug pod from existing pod (mnemonic: bash debug)
+  $(colorize YELLOW "CTRL-Y")         Copy resource name to clipboard
 EOF
 }
 

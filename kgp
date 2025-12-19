@@ -57,7 +57,7 @@ source "${SCRIPT_DIR}/lib/actions.sh"
 # ============================================================================
 # Export Functions for FZF
 # ============================================================================
-export -f debug colorize highlight_logs load_state save_state
+export -f debug colorize highlight_logs load_state save_state copy_to_clipboard
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
@@ -146,6 +146,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute:echo Delete not available in this view'
             fi" \
         --bind="ctrl-u:execute(dispatch yaml {1})+reload(display_data)" \
+        --bind="ctrl-y:execute-silent(copy_to_clipboard {1})" \
         --bind="ctrl-s:transform:
             if grep -q MODE=objects \$STATE_FILE && grep -q -E 'RESOURCE=(deployments|statefulsets|daemonsets|replicasets)' \$STATE_FILE; then
                 echo 'execute(dispatch scale {1})+reload(display_data)'
