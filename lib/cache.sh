@@ -18,6 +18,10 @@ initialize_cache() {
 
 refresh_cache() {
     load_state
+
+    # Ensure cache directory exists (important after context/namespace switch)
+    mkdir -p "$CACHE_DIR"
+
     debug "Refreshing cache for MODE=$MODE, CONTEXT=$CONTEXT, NAMESPACE=$NAMESPACE"
 
     if [[ "$MODE" == "pods" ]] || [[ "$MODE" == "containers" ]]; then
