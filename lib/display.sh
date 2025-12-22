@@ -28,7 +28,7 @@ show_objects_header() {
     local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back"
 
     case "$RESOURCE" in
-    Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-S") scale" ;;
+    Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-A") scale" ;;
     esac
 
     actions+="  $(colorize MAGENTA "?") help"
@@ -60,7 +60,7 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-D")         Describe resource
   $(colorize YELLOW "CTRL-E")         Exec into pod/container
   $(colorize YELLOW "CTRL-O")         View output logs
-  $(colorize YELLOW "CTRL-S")         Scale (Deployments, StatefulSets, etc.)
+  $(colorize YELLOW "CTRL-A")         Scale (Deployments, StatefulSets, etc.)
   $(colorize YELLOW "CTRL-U")         Update YAML
   $(colorize YELLOW "CTRL-W")         Delete resource
   $(colorize YELLOW "CTRL-Y")         Copy resource name to clipboard
