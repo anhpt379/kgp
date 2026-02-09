@@ -31,19 +31,26 @@ refresh_cache() {
             mv "$temp_file" "$raw_data_file"
             debug "Successfully fetched pod data, processing with $FORMAT_PODS"
             "$FORMAT_PODS" -i "$raw_data_file" -o "$CACHE_DIR"
+            return 0
         else
             debug "Failed to fetch pod data: kubectl command failed"
-            
-            # Create error message files
-            echo "$(colorize RED "✗ Unable to connect to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
-            echo "$(colorize YELLOW "  Possible causes:")" >> "${CACHE_DIR}/pods"
-            echo "  • Cluster is unreachable or not running" >> "${CACHE_DIR}/pods"
-            echo "  • Invalid kubeconfig or credentials expired" >> "${CACHE_DIR}/pods"
-            echo "  • Network connectivity issues" >> "${CACHE_DIR}/pods"
-            echo "$(colorize CYAN "  Press F5 to retry")" >> "${CACHE_DIR}/pods"
-            
-            echo -e "Loading..." > "${CACHE_DIR}/containers"
+
+            # Only overwrite cache with error if there's no valid cached data
+            # This preserves the previous session's cache on transient connection failures
+            if [[ ! -f "${CACHE_DIR}/pods" ]] || grep -q "Loading pod data" "${CACHE_DIR}/pods" 2>/dev/null; then
+                echo "$(colorize RED "✗ Unable to connect to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
+                echo "$(colorize YELLOW "  Possible causes:")" >> "${CACHE_DIR}/pods"
+                echo "  • Cluster is unreachable or not running" >> "${CACHE_DIR}/pods"
+                echo "  • Invalid kubeconfig or credentials expired" >> "${CACHE_DIR}/pods"
+                echo "  • Network connectivity issues" >> "${CACHE_DIR}/pods"
+                echo "$(colorize CYAN "  Press F5 to retry")" >> "${CACHE_DIR}/pods"
+
+                echo -e "Loading..." > "${CACHE_DIR}/containers"
+            else
+                debug "Keeping existing cache data despite connection failure"
+            fi
             rm -f "$temp_file"
+            return 1
         fi
     elif [[ "$MODE" == "objects" ]] && [[ -n "$RESOURCE" ]]; then
         refresh_objects_cache "$RESOURCE"
@@ -72,10 +79,18 @@ start_background_refresh() {
 
     # Initial delay to allow FZF to fully initialize and set FZF_PORT
     (sleep 1
+    local retry_interval=2
+    local connected=false
+
     while true; do
         debug "Background refresh: starting cache update..."
         load_state
-        refresh_cache || debug "Background refresh: refresh_cache failed, continuing..."
+
+        if refresh_cache; then
+            connected=true
+        else
+            debug "Background refresh: refresh_cache failed, continuing..."
+        fi
 
         # Trigger reload if FZF is running
         if [[ -n "${FZF_PORT:-}" ]] && [[ "${FZF_PORT:-}" =~ ^[0-9]+$ ]]; then
@@ -84,7 +99,12 @@ start_background_refresh() {
             debug "Background refresh: FZF_PORT not available yet"
         fi
 
-        sleep "$CACHE_REFRESH_INTERVAL"
+        # Use short retry interval until first successful connection, then normal interval
+        if [[ "$connected" == "true" ]]; then
+            sleep "$CACHE_REFRESH_INTERVAL"
+        else
+            sleep "$retry_interval"
+        fi
     done) &
 
     BG_REFRESH_PID=$!
