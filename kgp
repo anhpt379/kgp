@@ -77,7 +77,7 @@ export -f debug colorize highlight_logs load_state save_state copy_to_clipboard
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
-export -f exec_shell delete_object describe_object view_logs create_debug_pod
+export -f exec_shell delete_object describe_object view_logs create_debug_pod relaunch_pod
 export -f get_contexts switch_context get_current_namespace
 export -f scale_object edit_object show_help show_less_help less_help print_stream_closed_eof
 
@@ -186,6 +186,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute(dispatch debug {1})+reload(display_data)'
             else
                 echo 'execute:echo Debug pod creation only available for pods'
+            fi" \
+        --bind="ctrl-t:transform:
+            if grep -q MODE=pods \$STATE_FILE; then
+                echo 'execute(dispatch relaunch {1})+reload(display_data)'
+            elif grep -q MODE=objects \$STATE_FILE && grep -q RESOURCE=pods \$STATE_FILE; then
+                echo 'execute(dispatch relaunch {1})+reload(display_data)'
+            else
+                echo 'execute:echo Relaunch only available for pods'
             fi" \
         --bind="esc:transform:
             if grep -q MODE=pods \$STATE_FILE; then

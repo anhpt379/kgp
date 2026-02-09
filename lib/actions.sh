@@ -130,6 +130,30 @@ edit_object() {
     kubectl edit $resource "$object"
 }
 
+relaunch_pod() {
+    local pod="$1"
+
+    clear
+    echo "Relaunch pod: $pod"
+    echo "This will delete the pod and let the controller recreate it."
+    read -n 1 -p "Continue? (y/n) [n]: " confirm
+    echo
+
+    confirm="${confirm,,}"
+    if [[ "$confirm" == "y" ]]; then
+        if kubectl delete pod "$pod" --wait=false; then
+            echo "Pod '$pod' is being deleted and will be recreated by its controller."
+        else
+            echo "Failed to delete pod '$pod'"
+        fi
+    else
+        echo "Aborted."
+    fi
+
+    echo "Press any key to continue..."
+    read -n 1 -s
+}
+
 create_debug_pod() {
     local pod="$1"
     local debug_pod_name="${pod}-debug"
@@ -258,6 +282,13 @@ dispatch() {
             create_debug_pod "$target"
         elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" == "pods" ]]; then
             create_debug_pod "$target"
+        fi
+        ;;
+    relaunch)
+        if [[ "$MODE" == "pods" ]]; then
+            relaunch_pod "$target" && refresh_cache
+        elif [[ "$MODE" == "objects" ]] && [[ "$RESOURCE" == "pods" ]]; then
+            relaunch_pod "$target" && refresh_objects_cache "$RESOURCE"
         fi
         ;;
     esac

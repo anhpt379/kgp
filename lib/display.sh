@@ -59,6 +59,7 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-B")         Create debug pod from existing pod (mnemonic: bash debug)
   $(colorize YELLOW "CTRL-D")         Describe resource
   $(colorize YELLOW "CTRL-E")         Exec into pod/container
+  $(colorize YELLOW "CTRL-T")         Relaunch pod (delete and let controller recreate)
   $(colorize YELLOW "CTRL-O")         View output logs
   $(colorize YELLOW "CTRL-A")         Scale (Deployments, StatefulSets, etc.)
   $(colorize YELLOW "CTRL-U")         Update YAML
