@@ -9,7 +9,7 @@ endif
 LIB_SCRIPTS := $(wildcard lib/*.sh)
 LIB_BINS := lib/format-pods.py
 
-.PHONY: all install uninstall clean
+.PHONY: all install uninstall clean test test-verbose test-python test-all
 
 all: install
 
@@ -33,3 +33,17 @@ uninstall:
 	rm -f $(INSTALL_BIN_DIR)/kgp
 	rm -rf $(INSTALL_LIB_DIR)
 	@echo "Uninstall complete!"
+
+test:
+	@command -v bats >/dev/null 2>&1 || { echo "Error: bats is not installed. Install with: dnf install bats"; exit 1; }
+	@bats tests/*.bats
+
+test-verbose:
+	@command -v bats >/dev/null 2>&1 || { echo "Error: bats is not installed. Install with: dnf install bats"; exit 1; }
+	@bats --verbose-run tests/*.bats
+
+test-python:
+	@command -v pytest >/dev/null 2>&1 || { echo "Error: pytest is not installed. Install with: pip install pytest"; exit 1; }
+	@pytest tests/test_format_pods.py -v
+
+test-all: test test-python
