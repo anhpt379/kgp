@@ -167,7 +167,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         --bind="ctrl-u:execute(dispatch yaml {1})+reload(display_data)" \
         --bind="ctrl-y:execute-silent(copy_to_clipboard {1})" \
         --bind="ctrl-a:execute(dispatch scale {1})+reload(display_data)" \
-        --bind="ctrl-s:transform:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
+        --bind="ctrl-s:change-prompt(Contexts> )+execute-silent(dispatch contexts)+reload(display_data)+clear-query" \
         --bind="ctrl-r:change-prompt(Resources> )+execute-silent(dispatch resources)+reload(display_data)+clear-query" \
         --bind="ctrl-o:transform:
             if grep -q MODE=pods \$STATE_FILE; then
