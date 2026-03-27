@@ -109,6 +109,9 @@ initialize_cache
 # Initialize state
 save_state "pods"
 
+# Do initial cache refresh so data is ready before fzf starts
+refresh_cache
+
 # ============================================================================
 # Main UI
 # ============================================================================
