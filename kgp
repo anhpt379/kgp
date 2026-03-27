@@ -196,14 +196,12 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
                 echo 'execute:echo Relaunch only available for pods'
             fi" \
         --bind="esc:transform:
-            if grep -q MODE=pods \$STATE_FILE; then
-                echo abort
+            if grep -q MODE=objects \$STATE_FILE; then
+                echo 'change-prompt(Resources> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
+            elif grep -q MODE=pods \$STATE_FILE; then
+                echo ''
             else
-                if grep -q MODE=objects \$STATE_FILE; then
-                    echo 'change-prompt(Resources> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
-                else
-                    echo 'change-prompt(Pods> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
-                fi
+                echo 'change-prompt(Pods> )+execute-silent(dispatch back)+reload(display_data)+clear-query'
             fi"
 fi
 
