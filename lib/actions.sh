@@ -105,7 +105,20 @@ browse_logs() {
     # versus minutes with plugins loaded, and no mouse grab means the terminal's
     # own drag-select keeps working for copying.
     local editor="${KGP_LOG_EDITOR:-nvim -u NONE --noplugin}"
-    local title="logs: ${pod}${container:+ / $container}${previous:+ (previous)}"
+
+    # Same breadcrumb shape and colors as the other views, so the log view reads
+    # as part of the tool rather than a separate screen.
+    local crumbs="⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$pod")"
+    [[ -n "$container" ]] && crumbs+=" > $(colorize YELLOW "$container")"
+    [[ -n "$previous" ]] && crumbs+=" $(colorize ORANGE "(previous)")"
+
+    local keys="$(colorize MAGENTA "ESC") back"
+    keys+="  $(colorize MAGENTA "CTRL-V") editor"
+    keys+="  $(colorize MAGENTA "CTRL-L") less"
+    keys+="  $(colorize MAGENTA "CTRL-Y") copy"
+    keys+="  $(colorize MAGENTA "TAB") select"
+    keys+="  $(colorize MAGENTA "CTRL-G") end"
+    keys+="  $(colorize MAGENTA "CTRL-/") preview"
 
     local fifo="${spill}.fifo"
     rm -f "$fifo"
@@ -132,6 +145,10 @@ browse_logs() {
     # close the viewer on the first TAB instead of selecting a line, --no-multi
     # would disable selection entirely, and --scheme=path scores log text badly.
     #
+    # Note there is no --nth here on purpose: --with-nth already hides field 1
+    # from matching, and adding --nth=2.. on top of it points at a field the
+    # transformed item no longer has, which silently matches nothing.
+    #
     # The editor bindings deliberately avoid ${...} around the line number:
     # fzf treats {n} as its own placeholder and would rewrite it.
     fzf \
@@ -145,13 +162,12 @@ browse_logs() {
         --scheme=default \
         --delimiter=$'\t' \
         --with-nth=2.. \
-        --nth=2.. \
         --height=100% \
-        --prompt="Filter> " \
+        --prompt="Logs> " \
         --preview="preview_log_line '${spill}' {1}" \
         --preview-window="down,35%,wrap,border-top" \
-        --header="${title}
-ESC back · CTRL-V editor · CTRL-L less · CTRL-Y copy · TAB select · CTRL-G end · CTRL-/ preview" \
+        --header="${crumbs}
+${keys}" \
         --bind="esc:abort" \
         --bind="tab:toggle+down" \
         --bind="ctrl-/:toggle-preview" \
