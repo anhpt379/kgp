@@ -5,27 +5,27 @@
 
 show_pod_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "CTRL-S") switch contexts  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "CTRL-S") switch contexts  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-Y") copy pod name  $(colorize MAGENTA "?") help"
 }
 
 show_container_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD")"
-    echo "$(colorize MAGENTA "ENTER") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy container  $(colorize MAGENTA "?") help"
 }
 
 show_context_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT")"
-    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") select  $(colorize MAGENTA "CTRL-Y") copy context  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_resources_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
+    echo "$(colorize MAGENTA "ENTER") view  $(colorize MAGENTA "CTRL-Y") copy type  $(colorize MAGENTA "ESC") back  $(colorize MAGENTA "?") help"
 }
 
 show_objects_header() {
     echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
-    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy  $(colorize MAGENTA "ESC") back"
+    local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "ESC") back"
 
     case "$RESOURCE" in
     Deployments | StatefulSets | DaemonSets) actions+="  $(colorize MAGENTA "CTRL-A") scale" ;;
@@ -64,12 +64,12 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-A")         Scale (Deployments, StatefulSets, etc.)
   $(colorize YELLOW "CTRL-U")         Update YAML
   $(colorize YELLOW "CTRL-W")         Delete resource
-  $(colorize YELLOW "CTRL-Y")         Copy resource name to clipboard
+  $(colorize YELLOW "CTRL-Y")         Copy the name under the cursor to clipboard
 
 $(colorize CYAN "In the log viewer:")
   $(colorize YELLOW "ESC")            Back
   $(colorize YELLOW "TAB")            Select line (repeat for more)
-  $(colorize YELLOW "CTRL-Y")         Copy selected lines
+  $(colorize YELLOW "CTRL-Y")         Copy selected log lines
   $(colorize YELLOW "CTRL-V")         Open in editor, on the current line
   $(colorize YELLOW "CTRL-G")         Jump to newest line
   $(colorize YELLOW "CTRL-/")         Toggle full-line preview pane

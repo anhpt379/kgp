@@ -91,7 +91,7 @@ goes back the same way it does everywhere else.
 | `ESC` / `CTRL-C` | Back to the previous view |
 | type anything | Filter log lines (exact substring) |
 | `TAB` | Select a line (repeat for more) |
-| `CTRL-Y` | Copy selected lines to clipboard |
+| `CTRL-Y` | Copy selected log lines to clipboard |
 | `CTRL-V` | Open the full log in an editor, on the current line |
 | `CTRL-G` | Jump to the newest line |
 | `ALT-G` | Jump to the oldest line |

@@ -117,7 +117,7 @@ browse_logs() {
 
     local keys="$(colorize MAGENTA "ESC") back"
     keys+="  $(colorize MAGENTA "CTRL-V") editor"
-    keys+="  $(colorize MAGENTA "CTRL-Y") copy"
+    keys+="  $(colorize MAGENTA "CTRL-Y") copy lines"
     keys+="  $(colorize MAGENTA "TAB") select"
     keys+="  $(colorize MAGENTA "CTRL-G") end"
     keys+="  $(colorize MAGENTA "CTRL-/") full line"
