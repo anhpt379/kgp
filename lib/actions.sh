@@ -120,7 +120,7 @@ browse_logs() {
     keys+="  $(colorize MAGENTA "CTRL-Y") copy"
     keys+="  $(colorize MAGENTA "TAB") select"
     keys+="  $(colorize MAGENTA "CTRL-G") end"
-    keys+="  $(colorize MAGENTA "CTRL-/") preview"
+    keys+="  $(colorize MAGENTA "CTRL-/") full line"
 
     local fifo="${spill}.fifo"
     rm -f "$fifo"
@@ -168,6 +168,7 @@ browse_logs() {
         --prompt="Logs> " \
         --preview="preview_log_line '${spill}' {1}" \
         --preview-window="down,35%,wrap,border-top" \
+        --preview-label=" full line " \
         --header="${crumbs}
 ${keys}" \
         --bind="esc:abort" \
