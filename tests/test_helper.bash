@@ -172,3 +172,29 @@ assert_file_not_contains() {
         return 1
     fi
 }
+
+# Stand in for a login shell that does not import bash's exported functions,
+# which is how fish behaves. fzf runs every binding command through $SHELL, so
+# this is what a binding faces when kgp does not pick the shell itself.
+create_non_bash_shell() {
+    mkdir -p "${TEST_TMPDIR}/bin"
+    cat > "${TEST_TMPDIR}/bin/not-bash" <<'MOCK_SHELL'
+#!/bin/bash
+[[ "$1" == "-c" ]] || exit 127
+strip=()
+while read -r name; do
+    strip+=(-u "$name")
+done < <(env | sed -n 's/^\(BASH_FUNC_[^=]*\)=.*/\1/p')
+exec env "${strip[@]}" bash --noprofile --norc -c "$2"
+MOCK_SHELL
+    chmod +x "${TEST_TMPDIR}/bin/not-bash"
+    echo "${TEST_TMPDIR}/bin/not-bash"
+}
+
+# Run kgp's setup the way the real entry point does, stopping short of the fzf
+# call, which kgp itself guards with a BASH_SOURCE check.
+source_kgp() {
+    export KGP_CACHE_DIR="${TEST_TMPDIR}/kgp-cache"
+    export KGP_LOG_DIR="${TEST_TMPDIR}/kgp-logs"
+    source "${PROJECT_ROOT}/kgp"
+}
