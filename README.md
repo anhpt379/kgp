@@ -23,6 +23,8 @@
 - **Real-time updates** - Live resource status with smart caching
 - **Multi-context aware** - Switch between clusters seamlessly
 - **Essential operations** - exec, logs, describe, scale, delete
+- **Searchable logs** - Fuzzy-filter a live stream, then hand any line to an
+  editor or pager for copying
 - **Debug pod creation** - Clone pods with sleep command for troubleshooting
 - **Keyboard-driven** - Optimized for speed with intuitive shortcuts
 - **Zero configuration** - Works out of the box with kubectl
@@ -33,8 +35,15 @@
 
 ```bash
 kubectl  # Kubernetes CLI
-fzf      # Fuzzy finder (>=0.45.0)
+fzf      # Fuzzy finder (>=0.54.0 - the log viewer needs --wrap and --tail)
+python3  # Pod list formatting
+jq       # Debug pod creation
+less     # Paging describe output
 ```
+
+Also expected, and present on most systems: `awk` (gawk), `sed`, `grep`,
+`curl`, `sort`, `tee`, `cut`, `mktemp`, `mkfifo`, `pgrep`. All of these are
+checked at startup, so a missing one is reported immediately by name.
 
 ### Quick Install
 
@@ -53,6 +62,48 @@ export KGP_CACHE_REFRESH=30        # Cache refresh interval (seconds)
 export KGP_CACHE_DIR="/tmp/kgp"    # Cache location
 export KGP_DEBUG=1                 # Enable debug output
 ```
+
+Log viewer:
+
+```bash
+export KGP_LOG_TAIL=5000           # Lines fetched per container
+export KGP_LOG_VIEW_LINES=200000   # Lines fzf keeps in memory
+export KGP_LOG_EDITOR="nvim -u NONE --noplugin"   # Editor for CTRL-V
+export KGP_LOG_DIR="$HOME/.cache/kgp/logs"        # Where log streams spill
+```
+
+`KGP_LOG_DIR` deliberately defaults to a disk-backed path rather than
+`KGP_CACHE_DIR`, because that defaults to `/tmp`, which is `tmpfs` on many
+systems and would hold a large log dump in RAM.
+
+`KGP_LOG_EDITOR` runs without user config on purpose. A 100MB log buffer
+opens in about 0.14s that way, versus minutes once plugins start inspecting
+it. Skipping the config also leaves the mouse alone, so the terminal's own
+drag-select keeps working for copying.
+
+### Log viewer keys
+
+`CTRL-O` opens logs in a second fzf pane, so filtering is fuzzy and `ESC`
+goes back the same way it does everywhere else.
+
+| Key | Action |
+| --- | --- |
+| `ESC` / `CTRL-C` | Back to the previous view |
+| type anything | Filter log lines |
+| `TAB` | Select a line (repeat for more) |
+| `CTRL-Y` | Copy selected lines to clipboard |
+| `CTRL-V` | Open the full log in an editor, on the current line |
+| `CTRL-L` | Open the full log in `less`, on the current line |
+| `CTRL-G` | Jump to the newest line |
+| `ALT-G` | Jump to the oldest line |
+
+While the filter is empty the cursor stays pinned to the newest line, so a
+busy pod scrolls like `tail -f`. Type a filter to hold position.
+
+The full stream is written to a file as it arrives, which is what `CTRL-V`
+and `CTRL-L` open. That file covers everything fetched, even when the pane
+itself is capped by `KGP_LOG_VIEW_LINES`. It is removed when the view
+closes.
 
 ## ❓ FAQ
 

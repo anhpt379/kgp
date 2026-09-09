@@ -60,11 +60,19 @@ $(colorize CYAN "Actions:")
   $(colorize YELLOW "CTRL-D")         Describe resource
   $(colorize YELLOW "CTRL-E")         Exec into pod/container
   $(colorize YELLOW "CTRL-T")         Relaunch pod (delete and let controller recreate)
-  $(colorize YELLOW "CTRL-O")         View output logs
+  $(colorize YELLOW "CTRL-O")         View output logs (filterable; see keys below)
   $(colorize YELLOW "CTRL-A")         Scale (Deployments, StatefulSets, etc.)
   $(colorize YELLOW "CTRL-U")         Update YAML
   $(colorize YELLOW "CTRL-W")         Delete resource
   $(colorize YELLOW "CTRL-Y")         Copy resource name to clipboard
+
+$(colorize CYAN "In the log viewer:")
+  $(colorize YELLOW "ESC")            Back
+  $(colorize YELLOW "TAB")            Select line (repeat for more)
+  $(colorize YELLOW "CTRL-Y")         Copy selected lines
+  $(colorize YELLOW "CTRL-V")         Open in editor, on the current line
+  $(colorize YELLOW "CTRL-L")         Open in less, on the current line
+  $(colorize YELLOW "CTRL-G")         Jump to newest line
 EOF
 }
 
