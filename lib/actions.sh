@@ -85,8 +85,11 @@ describe_object() {
 #
 # fzf owns the view because ESC and CTRL-C return to the pod list there, which
 # less cannot do -- its --lesskey-src ESC binding is silently ignored by
-# less 702. CTRL-V / CTRL-L hand off to an editor or pager when a selection
-# needs real copying.
+# less 702. CTRL-V hands off to an editor when a selection needs real copying.
+#
+# CTRL-H, CTRL-J, CTRL-K, CTRL-L, CTRL-N and CTRL-P are deliberately unbound:
+# they are commonly claimed before the terminal sees them, so a binding on any
+# of them looks broken rather than absent. Arrow keys still move the cursor.
 browse_logs() {
     local pod="$1"
     local container="$2"
@@ -114,7 +117,6 @@ browse_logs() {
 
     local keys="$(colorize MAGENTA "ESC") back"
     keys+="  $(colorize MAGENTA "CTRL-V") editor"
-    keys+="  $(colorize MAGENTA "CTRL-L") less"
     keys+="  $(colorize MAGENTA "CTRL-Y") copy"
     keys+="  $(colorize MAGENTA "TAB") select"
     keys+="  $(colorize MAGENTA "CTRL-G") end"
@@ -137,8 +139,8 @@ browse_logs() {
 
     # Long lines are truncated rather than wrapped, so one screen row always
     # means one log line and the list stays scannable. The preview pane below
-    # carries the full text of the current line, and CTRL-V / CTRL-L open the
-    # whole stream when more than one line needs reading.
+    # carries the full text of the current line, and CTRL-V opens the whole
+    # stream when more than one line needs reading.
     #
     # Several options here exist to override a user's FZF_DEFAULT_OPTS rather
     # than for their own sake: tab:accept is a common default binding that would
@@ -173,15 +175,12 @@ ${keys}" \
         --bind="ctrl-/:toggle-preview" \
         --bind="btab:toggle+up" \
         --bind="ctrl-c:abort" \
-        --bind="ctrl-n:down" \
-        --bind="ctrl-p:up" \
         --bind="ctrl-g:last" \
         --bind="alt-g:first" \
         --bind="load:last" \
         --bind="result:transform:[ -n {q} ] && echo || echo last" \
         --bind="ctrl-y:execute-silent(copy_log_lines {+f})+deselect-all" \
         --bind="ctrl-v:execute(lineno={1}; ${editor} \"+\$lineno\" -- '${spill}')" \
-        --bind="ctrl-l:execute(lineno={1}; less -R \"+\$lineno\"g -- '${spill}')" \
         <"$fifo" || true
 
     terminate_tree "$producer"

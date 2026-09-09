@@ -93,7 +93,6 @@ goes back the same way it does everywhere else.
 | `TAB` | Select a line (repeat for more) |
 | `CTRL-Y` | Copy selected lines to clipboard |
 | `CTRL-V` | Open the full log in an editor, on the current line |
-| `CTRL-L` | Open the full log in `less`, on the current line |
 | `CTRL-G` | Jump to the newest line |
 | `ALT-G` | Jump to the oldest line |
 | `CTRL-/` | Toggle the preview pane |
@@ -104,14 +103,17 @@ busy pod scrolls like `tail -f`. Type a filter to hold position.
 Long lines are truncated rather than wrapped, so one screen row is always one
 log line and the list stays scannable. The preview pane underneath carries the
 full text of the line under the cursor, wrapped. For a line that needs reading
-alongside its neighbours, `CTRL-V` and `CTRL-L` open the whole stream at that
-line. `CTRL-Y` also copies from the stream rather than the display, so a
-truncated line is still copied in full.
+alongside its neighbours, `CTRL-V` opens the whole stream at that line.
+`CTRL-Y` also copies from the stream rather than the display, so a truncated
+line is still copied in full.
 
 The full stream is written to a file as it arrives, which is what `CTRL-V`
-and `CTRL-L` open. That file covers everything fetched, even when the pane
-itself is capped by `KGP_LOG_VIEW_LINES`. It is removed when the view
-closes.
+opens. That file covers everything fetched, even when the pane itself is
+capped by `KGP_LOG_VIEW_LINES`. It is removed when the view closes.
+
+The viewer leaves `CTRL-H`, `CTRL-J`, `CTRL-K`, `CTRL-L`, `CTRL-N` and
+`CTRL-P` unbound, since those are often remapped before the terminal sees
+them. Use the arrow keys to move the cursor.
 
 ## ❓ FAQ
 

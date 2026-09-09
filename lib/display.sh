@@ -71,7 +71,6 @@ $(colorize CYAN "In the log viewer:")
   $(colorize YELLOW "TAB")            Select line (repeat for more)
   $(colorize YELLOW "CTRL-Y")         Copy selected lines
   $(colorize YELLOW "CTRL-V")         Open in editor, on the current line
-  $(colorize YELLOW "CTRL-L")         Open in less, on the current line
   $(colorize YELLOW "CTRL-G")         Jump to newest line
   $(colorize YELLOW "CTRL-/")         Toggle preview (full text of long lines)
 EOF
