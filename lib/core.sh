@@ -190,6 +190,22 @@ less_help() {
     less "$@"
 }
 
+# Render the full text of one log line for the fzf preview pane. This is what
+# replaces line wrapping: the list stays one line per entry and the untruncated
+# text is read here instead.
+#
+# The sed range quits at the target line rather than scanning the whole file,
+# which matters because the preview re-runs on every cursor move and the spill
+# file can be large.
+preview_log_line() {
+    local spill="$1"
+    local lineno="$2"
+
+    [[ -f "$spill" ]] || return 0
+    [[ "$lineno" =~ ^[0-9]+$ ]] || return 0
+    sed -n "${lineno}{p;q}" "$spill"
+}
+
 # Kill a process and everything below it. Needed because fzf exiting does not
 # reliably tear down a kubectl log stream: on a quiet pod nothing writes, so no
 # SIGPIPE ever arrives, and kubectl can outlive the viewer holding the pipe open.

@@ -96,9 +96,17 @@ goes back the same way it does everywhere else.
 | `CTRL-L` | Open the full log in `less`, on the current line |
 | `CTRL-G` | Jump to the newest line |
 | `ALT-G` | Jump to the oldest line |
+| `CTRL-/` | Toggle the preview pane |
 
 While the filter is empty the cursor stays pinned to the newest line, so a
 busy pod scrolls like `tail -f`. Type a filter to hold position.
+
+Long lines are truncated rather than wrapped, so one screen row is always one
+log line and the list stays scannable. The preview pane underneath carries the
+full text of the line under the cursor, wrapped. For a line that needs reading
+alongside its neighbours, `CTRL-V` and `CTRL-L` open the whole stream at that
+line. `CTRL-Y` also copies from the stream rather than the display, so a
+truncated line is still copied in full.
 
 The full stream is written to a file as it arrives, which is what `CTRL-V`
 and `CTRL-L` open. That file covers everything fetched, even when the pane

@@ -122,6 +122,11 @@ browse_logs() {
     ) &
     local producer=$!
 
+    # Long lines are truncated rather than wrapped, so one screen row always
+    # means one log line and the list stays scannable. The preview pane below
+    # carries the full text of the current line, and CTRL-V / CTRL-L open the
+    # whole stream when more than one line needs reading.
+    #
     # Several options here exist to override a user's FZF_DEFAULT_OPTS rather
     # than for their own sake: tab:accept is a common default binding that would
     # close the viewer on the first TAB instead of selecting a line, --no-multi
@@ -134,7 +139,7 @@ browse_logs() {
         --no-sort \
         --no-mouse \
         --multi \
-        --wrap \
+        --no-wrap \
         --track \
         --tail="${KGP_LOG_VIEW_LINES:-200000}" \
         --scheme=default \
@@ -143,10 +148,13 @@ browse_logs() {
         --nth=2.. \
         --height=100% \
         --prompt="Filter> " \
+        --preview="preview_log_line '${spill}' {1}" \
+        --preview-window="down,35%,wrap,border-top" \
         --header="${title}
-ESC back · CTRL-V editor · CTRL-L less · CTRL-Y copy · TAB select · CTRL-G end" \
+ESC back · CTRL-V editor · CTRL-L less · CTRL-Y copy · TAB select · CTRL-G end · CTRL-/ preview" \
         --bind="esc:abort" \
         --bind="tab:toggle+down" \
+        --bind="ctrl-/:toggle-preview" \
         --bind="btab:toggle+up" \
         --bind="ctrl-c:abort" \
         --bind="ctrl-n:down" \

@@ -80,7 +80,7 @@ source "${LIB_DIR}/actions.sh"
 # Export Functions for FZF
 # ============================================================================
 export -f debug colorize highlight_logs load_state save_state copy_to_clipboard
-export -f clipboard_from_stdin copy_log_lines terminate_tree
+export -f clipboard_from_stdin copy_log_lines terminate_tree preview_log_line
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
