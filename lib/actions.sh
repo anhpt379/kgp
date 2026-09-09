@@ -60,7 +60,7 @@ describe_object() {
     echo "Describing $resource: $object"
 
     if [[ "$resource" == "pod" ]]; then
-        kubectl describe pod "$object" | less_help -R +F
+        kubectl describe pod "$object" | less_help -R
     elif [[ "$resource" == "container" ]]; then
         load_state
         kubectl describe pod "$POD" |
@@ -74,10 +74,96 @@ describe_object() {
                 found && /^  [^ ]+:$/ && $0 !~ "^    " { found = 0 }
                 found && /^[^ ]/ { found = 0; in_containers = 0 }
                 found { print }
-            ' | less_help -R +F
+            ' | less_help -R
     else
-        kubectl describe "$resource" "$object" | less_help -R +F
+        kubectl describe "$resource" "$object" | less_help -R
     fi
+}
+
+# Stream a pod's logs into fzf, spilling the uncolored stream to a file so an
+# editor can be opened on the exact line under the cursor.
+#
+# fzf owns the view because ESC and CTRL-C return to the pod list there, which
+# less cannot do -- its --lesskey-src ESC binding is silently ignored by
+# less 702. CTRL-V / CTRL-L hand off to an editor or pager when a selection
+# needs real copying.
+browse_logs() {
+    local pod="$1"
+    local container="$2"
+    local spill="$3"
+    local previous="$4"
+
+    local args=("$pod" "--follow" "--prefix" "--timestamps" "--tail=${KGP_LOG_TAIL:-5000}")
+    if [[ -n "$container" ]]; then
+        args+=("-c" "$container")
+    else
+        args+=("--all-containers" "--max-log-requests=20")
+    fi
+    [[ -n "$previous" ]] && args+=("--previous")
+
+    # Opened with no user config on purpose: a 100MB buffer takes 0.14s that way
+    # versus minutes with plugins loaded, and no mouse grab means the terminal's
+    # own drag-select keeps working for copying.
+    local editor="${KGP_LOG_EDITOR:-nvim -u NONE --noplugin}"
+    local title="logs: ${pod}${container:+ / $container}${previous:+ (previous)}"
+
+    local fifo="${spill}.fifo"
+    rm -f "$fifo"
+    mkfifo "$fifo" || return 1
+
+    # fzf reads through a fifo instead of a direct pipeline so that the producer
+    # stays a background job this function can tear down by hand once the viewer
+    # exits. As a foreground pipeline the shell would block waiting on kubectl.
+    (
+        {
+            kubectl logs "${args[@]}" 2>&1
+            print_stream_closed_eof "$pod" "$container"
+        } | tee "$spill" | highlight_logs >"$fifo"
+    ) &
+    local producer=$!
+
+    # Several options here exist to override a user's FZF_DEFAULT_OPTS rather
+    # than for their own sake: tab:accept is a common default binding that would
+    # close the viewer on the first TAB instead of selecting a line, --no-multi
+    # would disable selection entirely, and --scheme=path scores log text badly.
+    #
+    # The editor bindings deliberately avoid ${...} around the line number:
+    # fzf treats {n} as its own placeholder and would rewrite it.
+    fzf \
+        --ansi \
+        --no-sort \
+        --no-mouse \
+        --multi \
+        --wrap \
+        --track \
+        --tail="${KGP_LOG_VIEW_LINES:-200000}" \
+        --scheme=default \
+        --delimiter=$'\t' \
+        --with-nth=2.. \
+        --nth=2.. \
+        --height=100% \
+        --prompt="Filter> " \
+        --header="${title}
+ESC back · CTRL-V editor · CTRL-L less · CTRL-Y copy · TAB select · CTRL-G end" \
+        --bind="esc:abort" \
+        --bind="tab:toggle+down" \
+        --bind="btab:toggle+up" \
+        --bind="ctrl-c:abort" \
+        --bind="ctrl-n:down" \
+        --bind="ctrl-p:up" \
+        --bind="ctrl-g:last" \
+        --bind="alt-g:first" \
+        --bind="load:last" \
+        --bind="result:transform:[ -n {q} ] && echo || echo last" \
+        --bind="ctrl-y:execute-silent(copy_log_lines {+f})+deselect-all" \
+        --bind="ctrl-v:execute(lineno={1}; ${editor} \"+\$lineno\" -- '${spill}')" \
+        --bind="ctrl-l:execute(lineno={1}; less -R \"+\$lineno\"g -- '${spill}')" \
+        <"$fifo" || true
+
+    terminate_tree "$producer"
+    wait "$producer" 2>/dev/null
+    rm -f "$fifo"
+    return 0
 }
 
 view_logs() {
@@ -85,20 +171,20 @@ view_logs() {
     local container="${2:-}"
 
     clear
-    local args=("$pod" "--follow" "--prefix" "--timestamps")
-    [[ -n "$container" ]] && args+=("-c" "$container") || args+=("--all-containers" "--max-log-requests=20")
 
-    if {
-        kubectl logs "${args[@]}" 2>&1
-        print_stream_closed_eof "$pod" "$container"
-    } | highlight_logs | (less_help -R +F || true); then
-        return 0
-    else
-        {
-            kubectl logs "${args[@]}" --previous 2>&1
-            print_stream_closed_eof "$pod" "$container"
-        } | highlight_logs | (less_help -R +F || true)
+    mkdir -p "$LOG_SPILL_DIR"
+    local spill
+    spill=$(mktemp "${LOG_SPILL_DIR}/log.XXXXXX") || return 1
+
+    browse_logs "$pod" "$container" "$spill" ""
+
+    # kubectl --prefix brackets every real log line, so their absence means the
+    # live stream had nothing to show -- usually a restarted container.
+    if ! grep -q "^\[" "$spill" 2>/dev/null; then
+        browse_logs "$pod" "$container" "$spill" "previous"
     fi
+
+    rm -f "$spill"
 }
 
 scale_object() {

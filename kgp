@@ -12,6 +12,11 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly CACHE_REFRESH_INTERVAL="${KGP_CACHE_REFRESH:-30}"
 
+# Log spill files land on disk, not in CACHE_BASE_DIR: /tmp is tmpfs on many
+# systems, so a large log dump there would be held in RAM alongside the copy
+# fzf already keeps in memory.
+readonly LOG_SPILL_DIR="${KGP_LOG_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/kgp/logs}"
+
 # Colors
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -34,6 +39,7 @@ readonly LIB_DIR_SEARCH_PATHS=(
 # ============================================================================
 CACHE_BASE_DIR="${KGP_CACHE_DIR:-/tmp/kgp}"
 mkdir -p "${CACHE_BASE_DIR}"
+mkdir -p "${LOG_SPILL_DIR}"
 
 CONTEXT=""
 NAMESPACE=""
@@ -74,22 +80,23 @@ source "${LIB_DIR}/actions.sh"
 # Export Functions for FZF
 # ============================================================================
 export -f debug colorize highlight_logs load_state save_state copy_to_clipboard
+export -f clipboard_from_stdin copy_log_lines terminate_tree
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
 export -f refresh_cache refresh_objects_cache display_data dispatch
-export -f exec_shell delete_object describe_object view_logs create_debug_pod relaunch_pod
+export -f exec_shell delete_object describe_object view_logs browse_logs create_debug_pod relaunch_pod
 export -f get_contexts switch_context get_current_namespace
 export -f scale_object edit_object show_help show_less_help less_help print_stream_closed_eof
 
 # Export variables
 export RED GREEN YELLOW ORANGE CYAN GRAY MAGENTA WHITE RESET
-export LIB_DIR FORMAT_PODS CACHE_BASE_DIR CACHE_DIR
+export LIB_DIR FORMAT_PODS CACHE_BASE_DIR CACHE_DIR LOG_SPILL_DIR
 export STATE_FILE CONTEXT NAMESPACE MODE POD RESOURCE OBJECT
 
 # ============================================================================
 # Setup
 # ============================================================================
-check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "sort" "jq"
+check_dependencies "kubectl" "fzf" "python3" "awk" "curl" "grep" "sed" "less" "mktemp" "mkfifo" "pgrep" "tee" "cut" "sort" "jq"
 FORMAT_PODS="${LIB_DIR}/format-pods.py"
 
 # Initialize environment
