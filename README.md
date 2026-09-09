@@ -68,7 +68,7 @@ Log viewer:
 ```bash
 export KGP_LOG_TAIL=5000           # Lines fetched per container
 export KGP_LOG_VIEW_LINES=200000   # Lines fzf keeps in memory
-export KGP_LOG_EDITOR="nvim -u NONE --noplugin"   # Editor for CTRL-V
+export KGP_LOG_EDITOR="nvim -u NONE --noplugin +'nnoremap q :qa!<CR>'"  # Editor for CTRL-V
 export KGP_LOG_DIR="$HOME/.cache/kgp/logs"        # Where log streams spill
 ```
 
@@ -79,7 +79,10 @@ systems and would hold a large log dump in RAM.
 `KGP_LOG_EDITOR` runs without user config on purpose. A 100MB log buffer
 opens in about 0.14s that way, versus minutes once plugins start inspecting
 it. Skipping the config also leaves the mouse alone, so the terminal's own
-drag-select keeps working for copying.
+drag-select keeps working for copying. Because that skips the user's own
+mappings too, the default binds `q` to quit, matching how every other view
+in the tool is left. An override replaces the whole command, mapping
+included.
 
 ### Log viewer keys
 

@@ -107,7 +107,12 @@ browse_logs() {
     # Opened with no user config on purpose: a 100MB buffer takes 0.14s that way
     # versus minutes with plugins loaded, and no mouse grab means the terminal's
     # own drag-select keeps working for copying.
-    local editor="${KGP_LOG_EDITOR:-nvim -u NONE --noplugin}"
+    #
+    # That also drops the user's own quit mapping, so q is bound here: the buffer
+    # is a read-only log dump, and every other view in the tool leaves on a
+    # single key. The map is part of the default value rather than a flag added
+    # to it, so overriding KGP_LOG_EDITOR with a non-vim editor stays valid.
+    local editor="${KGP_LOG_EDITOR:-nvim -u NONE --noplugin +'nnoremap q :qa!<CR>'}"
 
     # Same breadcrumb shape and colors as the other views, so the log view reads
     # as part of the tool rather than a separate screen.
