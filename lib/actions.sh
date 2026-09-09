@@ -147,6 +147,11 @@ browse_logs() {
     # close the viewer on the first TAB instead of selecting a line, --no-multi
     # would disable selection entirely, and --scheme=path scores log text badly.
     #
+    # --exact turns the query into substring matching, which is what reading logs
+    # wants: fuzzy scoring spreads a query like "error" across unrelated lines
+    # that merely contain those letters in order. Space-separated terms still AND
+    # together, and a term can opt back into fuzzy matching with a ' prefix.
+    #
     # Note there is no --nth here on purpose: --with-nth already hides field 1
     # from matching, and adding --nth=2.. on top of it points at a field the
     # transformed item no longer has, which silently matches nothing.
@@ -155,6 +160,7 @@ browse_logs() {
     # fzf treats {n} as its own placeholder and would rewrite it.
     fzf \
         --ansi \
+        --exact \
         --no-sort \
         --no-mouse \
         --multi \

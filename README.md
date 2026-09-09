@@ -83,13 +83,13 @@ drag-select keeps working for copying.
 
 ### Log viewer keys
 
-`CTRL-O` opens logs in a second fzf pane, so filtering is fuzzy and `ESC`
+`CTRL-O` opens logs in a second fzf pane, so filtering is live and `ESC`
 goes back the same way it does everywhere else.
 
 | Key | Action |
 | --- | --- |
 | `ESC` / `CTRL-C` | Back to the previous view |
-| type anything | Filter log lines |
+| type anything | Filter log lines (exact substring) |
 | `TAB` | Select a line (repeat for more) |
 | `CTRL-Y` | Copy selected lines to clipboard |
 | `CTRL-V` | Open the full log in an editor, on the current line |
@@ -99,6 +99,11 @@ goes back the same way it does everywhere else.
 
 While the filter is empty the cursor stays pinned to the newest line, so a
 busy pod scrolls like `tail -f`. Type a filter to hold position.
+
+The filter matches exact substrings rather than fuzzy ones, since fuzzy
+scoring spreads a query like `error` across unrelated lines that merely
+contain those letters in order. Space-separated terms still narrow together,
+and a single term can opt back into fuzzy matching with a `'` prefix.
 
 Long lines are truncated rather than wrapped, so one screen row is always one
 log line and the list stays scannable. The pane underneath, labelled "full
