@@ -121,6 +121,19 @@ The viewer leaves `CTRL-H`, `CTRL-J`, `CTRL-K`, `CTRL-L`, `CTRL-N` and
 `CTRL-P` unbound, since those are often remapped before the terminal sees
 them. Use the arrow keys to move the cursor.
 
+## 🧪 Tests
+
+`make test` runs the bats suite, `make test-python` the format-pods tests, and
+`make test-all` both.
+
+Most of the suite stubs `kubectl` out and calls the library functions directly.
+The refresh path is covered at two levels, since a redraw can only fail on
+screen: `tests/refresh.bats` drives the background loop with `curl` recorded
+rather than sent, and `tests/refresh_e2e.bats` runs the real kgp in a tmux pane
+with a real fzf and reads the pane back to confirm the list actually changes.
+The end-to-end tests skip themselves when `tmux` or `fzf` is missing, and add
+about 20 seconds to a run.
+
 ## ❓ FAQ
 
 ### Why is there no "switch namespace" action?

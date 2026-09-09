@@ -198,3 +198,166 @@ source_kgp() {
     export KGP_LOG_DIR="${TEST_TMPDIR}/kgp-logs"
     source "${PROJECT_ROOT}/kgp"
 }
+
+# Poll for a condition instead of sleeping a fixed guess, so tests that wait on
+# the background refresh loop stay quick without being timing-fragile.
+wait_for() {
+    local timeout="$1"
+    shift
+    local deadline=$((SECONDS + timeout))
+
+    while ((SECONDS <= deadline)); do
+        if "$@"; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    return 1
+}
+
+# kubectl stand-in that serves pod JSON from a file, so a test can change what
+# the cluster reports mid-run. Deleting the file makes kubectl fail. Every call
+# is recorded in $KUBECTL_CALLS.
+mock_kubectl_from_file() {
+    local pods_json="$1"
+
+    mkdir -p "${TEST_TMPDIR}/bin"
+    export KUBECTL_CALLS="${TEST_TMPDIR}/kubectl-calls"
+    : >"$KUBECTL_CALLS"
+
+    cat >"${TEST_TMPDIR}/bin/kubectl" <<MOCK_SCRIPT
+#!/bin/bash
+echo "\$*" >>"${KUBECTL_CALLS}"
+case "\$*" in
+"config current-context")
+    echo "test-context"
+    ;;
+"config view --minify --output jsonpath={..namespace}")
+    echo "test-namespace"
+    ;;
+"get pods -o json")
+    [[ -f "${pods_json}" ]] || exit 1
+    cat "${pods_json}"
+    ;;
+*)
+    exit 0
+    ;;
+esac
+MOCK_SCRIPT
+    chmod +x "${TEST_TMPDIR}/bin/kubectl"
+    export PATH="${TEST_TMPDIR}/bin:$PATH"
+}
+
+# Write pod JSON in the shape format-pods.py reads, one entry per name given.
+write_pods_json() {
+    local target="$1"
+    shift
+
+    python3 - "$target" "$@" <<'PY'
+import json, sys
+
+target, names = sys.argv[1], sys.argv[2:]
+items = []
+for name in names:
+    items.append({
+        "metadata": {"name": name, "namespace": "test-namespace",
+                     "creationTimestamp": "2026-01-01T00:00:00Z"},
+        "spec": {"containers": [{"name": "app", "image": "registry/app:1.0"}],
+                 "nodeName": "node-1"},
+        "status": {"phase": "Running", "podIP": "10.0.0.1",
+                   "startTime": "2026-01-01T00:00:00Z",
+                   "containerStatuses": [{
+                       "name": "app", "image": "registry/app:1.0",
+                       "ready": True, "restartCount": 0,
+                       "state": {"running": {"startedAt": "2026-01-01T00:00:00Z"}}}],
+                   "conditions": [{"type": "Ready", "status": "True"}]},
+    })
+with open(target, "w") as handle:
+    json.dump({"apiVersion": "v1", "kind": "List", "items": items}, handle)
+PY
+}
+
+# format-pods.py stand-in that carries pod names through to the cache, so a test
+# can tell one refresh from the next by what the cache holds.
+mock_format_pods_names() {
+    mkdir -p "${TEST_TMPDIR}/bin"
+    cat >"${TEST_TMPDIR}/bin/format-pods.py" <<'MOCK_SCRIPT'
+#!/usr/bin/env python3
+import json, sys
+
+args = sys.argv[1:]
+source = args[args.index("-i") + 1]
+target = args[args.index("-o") + 1]
+
+with open(source) as handle:
+    names = [i["metadata"]["name"] for i in json.load(handle).get("items", [])]
+
+with open(f"{target}/pods", "w") as handle:
+    handle.write("NAME  READY  STATUS  RESTARTS  AGE\n")
+    for name in names:
+        handle.write(f"{name}  1/1  Running  0  1d\n")
+
+with open(f"{target}/containers", "w") as handle:
+    handle.write("POD  CONTAINER  READY\n")
+    for name in names:
+        handle.write(f"{name}  app  true\n")
+MOCK_SCRIPT
+    chmod +x "${TEST_TMPDIR}/bin/format-pods.py"
+    export FORMAT_PODS="${TEST_TMPDIR}/bin/format-pods.py"
+}
+
+# curl stand-in that records the reload requests the refresh loop fires at fzf.
+mock_curl_recorder() {
+    mkdir -p "${TEST_TMPDIR}/bin"
+    export CURL_LOG="${TEST_TMPDIR}/curl.log"
+    : >"$CURL_LOG"
+
+    cat >"${TEST_TMPDIR}/bin/curl" <<MOCK_SCRIPT
+#!/bin/bash
+echo "\$*" >>"${CURL_LOG}"
+exit 0
+MOCK_SCRIPT
+    chmod +x "${TEST_TMPDIR}/bin/curl"
+    export PATH="${TEST_TMPDIR}/bin:$PATH"
+}
+
+# ============================================================================
+# End-to-end helpers: a real kgp, with a real fzf, in a real terminal
+# ============================================================================
+
+# fzf needs a tty, so the end-to-end tests drive kgp inside tmux and read the
+# pane back. Both are optional: tests that need them skip when they are absent.
+require_terminal_harness() {
+    command -v tmux >/dev/null 2>&1 || skip "tmux is not installed"
+    command -v fzf >/dev/null 2>&1 || skip "fzf is not installed"
+}
+
+# Launch the real kgp entry point in tmux. Extra arguments are passed to env, so
+# a test can set things like SHELL for the run.
+start_kgp_in_tmux() {
+    export KGP_TMUX_SESSION="kgp-test-$$-${BATS_TEST_NUMBER:-0}"
+    tmux kill-session -t "$KGP_TMUX_SESSION" 2>/dev/null || true
+    tmux new-session -d -s "$KGP_TMUX_SESSION" -x 120 -y 30 \
+        "env PATH='${PATH}' \
+             KGP_CACHE_DIR='${TEST_TMPDIR}/kgp-cache' \
+             KGP_LOG_DIR='${TEST_TMPDIR}/kgp-logs' \
+             KGP_CACHE_REFRESH=1 \
+             KGP_DEBUG=0 \
+             $* \
+             '${PROJECT_ROOT}/kgp'; sleep 60"
+}
+
+stop_kgp_in_tmux() {
+    if [[ -n "${KGP_TMUX_SESSION:-}" ]]; then
+        tmux kill-session -t "$KGP_TMUX_SESSION" 2>/dev/null || true
+        KGP_TMUX_SESSION=""
+    fi
+}
+
+pane_text() {
+    tmux capture-pane -p -t "$KGP_TMUX_SESSION" 2>/dev/null || true
+}
+
+pane_has() {
+    pane_text | grep -q -- "$1"
+}
