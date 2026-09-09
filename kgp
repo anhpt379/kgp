@@ -88,6 +88,12 @@ export -f exec_shell delete_object describe_object view_logs browse_logs create_
 export -f get_contexts switch_context get_current_namespace
 export -f scale_object edit_object show_help show_less_help less_help print_stream_closed_eof
 
+# fzf runs every reload/execute binding through $SHELL, and the helpers above are
+# exported bash functions that only a bash child can see. Under a non-bash login
+# shell such as fish the bindings die with "command failed", which shows up as an
+# empty list the moment the background refresh fires its first reload.
+export SHELL="$(command -v bash)"
+
 # Export variables
 export RED GREEN YELLOW ORANGE CYAN GRAY MAGENTA WHITE RESET
 export LIB_DIR FORMAT_PODS CACHE_BASE_DIR CACHE_DIR LOG_SPILL_DIR
