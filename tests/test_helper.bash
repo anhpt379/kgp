@@ -236,6 +236,12 @@ case "\$*" in
     echo "test-namespace"
     ;;
 "get pods -o json")
+    # Stand in for an expired login, which is a failure with a message rather
+    # than a missing cluster.
+    if [[ -f "${TEST_TMPDIR}/expired" ]]; then
+        echo "error: You must be logged in to the server (Unauthorized)" >&2
+        exit 1
+    fi
     [[ -f "${pods_json}" ]] || exit 1
     cat "${pods_json}"
     ;;

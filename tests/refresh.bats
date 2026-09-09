@@ -182,3 +182,139 @@ kubectl_calls_at_least() {
 
     [ "$status" -eq 0 ]
 }
+
+# ============================================================================
+# Refresh failure is visible in the header
+#
+# A refresh that fails while a good cache exists keeps that cache, so the list
+# looks live when it is not. Expired credentials are the everyday case: nothing
+# breaks, the data just stops moving.
+# ============================================================================
+
+fail_kubectl_with() {
+    cat >"${TEST_TMPDIR}/bin/kubectl" <<MOCK_SCRIPT
+#!/bin/bash
+echo "\$*" >>"${KUBECTL_CALLS}"
+case "\$*" in
+"config current-context") echo "test-context" ;;
+"config view --minify --output jsonpath={..namespace}") echo "test-namespace" ;;
+"get pods -o json")
+    echo "$1" >&2
+    exit 1
+    ;;
+*) exit 0 ;;
+esac
+MOCK_SCRIPT
+    chmod +x "${TEST_TMPDIR}/bin/kubectl"
+}
+
+header_has_warning() {
+    show_pod_header | grep -q "⚠"
+}
+
+@test "refresh failure: header warns about expired credentials" {
+    refresh_cache
+    fail_kubectl_with "error: You must be logged in to the server (Unauthorized)"
+
+    refresh_cache || true
+
+    run show_pod_header
+    [[ "$output" == *"⚠"* ]]
+    [[ "$output" == *"credentials expired"* ]]
+    [[ "$output" == *"F5 to retry"* ]]
+}
+
+@test "refresh failure: header names an unreachable cluster differently" {
+    refresh_cache
+    fail_kubectl_with "Unable to connect to the server: dial tcp 10.0.0.1:443: i/o timeout"
+
+    refresh_cache || true
+
+    run show_pod_header
+    [[ "$output" == *"cluster unreachable"* ]]
+}
+
+@test "refresh failure: header still warns when the reason is unrecognised" {
+    refresh_cache
+    fail_kubectl_with "some brand new kubectl complaint"
+
+    refresh_cache || true
+
+    run show_pod_header
+    [[ "$output" == *"⚠"* ]]
+    [[ "$output" == *"refresh failing"* ]]
+}
+
+@test "refresh failure: a healthy header carries no warning" {
+    refresh_cache
+
+    run show_pod_header
+    [[ "$output" != *"⚠"* ]]
+}
+
+@test "refresh failure: the warning clears once the cluster answers again" {
+    refresh_cache
+    fail_kubectl_with "error: You must be logged in to the server (Unauthorized)"
+    refresh_cache || true
+    header_has_warning
+
+    mock_kubectl_from_file "$PODS_JSON"
+    refresh_cache
+
+    ! header_has_warning
+}
+
+@test "refresh failure: keeps the first reason and time across repeated failures" {
+    refresh_cache
+    fail_kubectl_with "error: You must be logged in to the server (Unauthorized)"
+    refresh_cache || true
+    local first_marker
+    first_marker=$(stat -c %Y "${CACHE_DIR}/.refresh_error" 2>/dev/null || stat -f %m "${CACHE_DIR}/.refresh_error")
+
+    sleep 1
+    fail_kubectl_with "Unable to connect to the server: dial tcp 10.0.0.1:443: i/o timeout"
+    refresh_cache || true
+
+    # The age shown has to keep counting from the first failure, not reset on
+    # every attempt, or a long outage reads as a fresh blip.
+    local second_marker
+    second_marker=$(stat -c %Y "${CACHE_DIR}/.refresh_error" 2>/dev/null || stat -f %m "${CACHE_DIR}/.refresh_error")
+    [ "$first_marker" -eq "$second_marker" ]
+    show_pod_header | grep -q "credentials expired"
+}
+
+@test "refresh failure: the container and object headers warn too" {
+    refresh_cache
+    fail_kubectl_with "error: You must be logged in to the server (Unauthorized)"
+    refresh_cache || true
+
+    POD="alpha-pod"
+    RESOURCE="Deployments"
+
+    show_container_header | grep -q "⚠"
+    show_objects_header | grep -q "⚠"
+}
+
+@test "refresh failure: the background loop raises the warning on its own" {
+    start_background_refresh
+    wait_for 10 cache_has "alpha-pod"
+    ! header_has_warning
+
+    fail_kubectl_with "error: You must be logged in to the server (Unauthorized)"
+
+    wait_for 10 header_has_warning
+    cache_has "alpha-pod"
+}
+
+@test "refresh failure: the age reads in seconds, minutes or hours" {
+    local marker="${CACHE_DIR}/.refresh_error"
+    echo "refresh failing" >"$marker"
+
+    [[ "$(refresh_error_age "$marker")" == *s ]]
+
+    touch -d "@$(($(date +%s) - 300))" "$marker" 2>/dev/null || touch -t "$(date -v-5M +%Y%m%d%H%M)" "$marker"
+    [ "$(refresh_error_age "$marker")" = "5m" ]
+
+    touch -d "@$(($(date +%s) - 7200))" "$marker" 2>/dev/null || touch -t "$(date -v-2H +%Y%m%d%H%M)" "$marker"
+    [ "$(refresh_error_age "$marker")" = "2h" ]
+}

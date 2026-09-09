@@ -121,6 +121,24 @@ The viewer leaves `CTRL-H`, `CTRL-J`, `CTRL-K`, `CTRL-L`, `CTRL-N` and
 `CTRL-P` unbound, since those are often remapped before the terminal sees
 them. Use the arrow keys to move the cursor.
 
+## ⚠️ Stale data
+
+A refresh that fails while the cache still holds good data keeps showing that
+data, since a brief blip should not empty the screen. What it must not do is
+look live, and an expired login is exactly that case: nothing breaks, the list
+simply stops moving. When a refresh fails, the breadcrumb line gains a note
+naming the reason and how long the data has been stale:
+
+```
+⎈ prod-cluster > production  ⚠ credentials expired, log in again — data 4m stale, F5 to retry
+```
+
+The reason comes from what kubectl said: expired credentials, an unreachable
+cluster, a namespace the account cannot list, or a plain "refresh failing" when
+the message is unfamiliar. The age counts from the first failure rather than the
+most recent attempt, so a long outage does not read as a fresh blip. The note
+clears on the next refresh that succeeds.
+
 ## 🧪 Tests
 
 `make test` runs the bats suite, `make test-python` the format-pods tests, and

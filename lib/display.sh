@@ -4,12 +4,16 @@
 # ============================================================================
 
 show_pod_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
+    local note
+    note=$(refresh_error_note)
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")${note:+  $note}"
     echo "$(colorize MAGENTA "CTRL-S") switch contexts  $(colorize MAGENTA "CTRL-R") resources  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-Y") copy pod name  $(colorize MAGENTA "?") help"
 }
 
 show_container_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD")"
+    local note
+    note=$(refresh_error_note)
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE") > $(colorize YELLOW "$POD")${note:+  $note}"
     echo "$(colorize MAGENTA "ENTER") logs  $(colorize MAGENTA "CTRL-E") exec  $(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy container  $(colorize MAGENTA "?") help"
 }
 
@@ -24,7 +28,9 @@ show_resources_header() {
 }
 
 show_objects_header() {
-    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")"
+    local note
+    note=$(refresh_error_note)
+    echo "⎈ $(colorize YELLOW "$CONTEXT") > $(colorize YELLOW "$NAMESPACE")${note:+  $note}"
     local actions="$(colorize MAGENTA "ENTER")/$(colorize MAGENTA "CTRL-D") describe  $(colorize MAGENTA "CTRL-Y") copy name  $(colorize MAGENTA "ESC") back"
 
     case "$RESOURCE" in

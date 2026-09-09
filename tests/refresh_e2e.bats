@@ -24,6 +24,10 @@ teardown() {
     teardown_test_env
 }
 
+pane_free_of_warning() {
+    ! pane_has "⚠"
+}
+
 @test "e2e: the list redraws with new pods while sitting idle" {
     start_kgp_in_tmux
 
@@ -82,5 +86,53 @@ teardown() {
     rm -f "$PODS_JSON"
     sleep 4
 
-    pane_has "alpha-pod"
+    wait_for 10 pane_has "alpha-pod"
+}
+
+@test "e2e: an expired login is called out in the header, not hidden" {
+    start_kgp_in_tmux
+
+    wait_for 20 pane_has "alpha-pod" || {
+        echo "initial list never appeared:"
+        pane_text
+        return 1
+    }
+
+    # The login expires. kubectl starts failing, the cached list stays on screen,
+    # and without a warning there is nothing to tell the two states apart.
+    touch "${TEST_TMPDIR}/expired"
+
+    wait_for 20 pane_has "credentials expired" || {
+        echo "no warning appeared after the login expired:"
+        pane_text
+        return 1
+    }
+
+    # The pods stay listed: stale data beats an empty screen, as long as it says so.
+    wait_for 10 pane_has "alpha-pod"
+}
+
+@test "e2e: the warning goes away after logging back in" {
+    start_kgp_in_tmux
+    wait_for 20 pane_has "alpha-pod" || {
+        echo "initial list never appeared:"
+        pane_text
+        return 1
+    }
+
+    touch "${TEST_TMPDIR}/expired"
+    wait_for 20 pane_has "credentials expired" || {
+        echo "no warning appeared after the login expired:"
+        pane_text
+        return 1
+    }
+
+    rm -f "${TEST_TMPDIR}/expired"
+
+    wait_for 20 pane_free_of_warning || {
+        echo "warning stayed after the cluster answered again:"
+        pane_text
+        return 1
+    }
+    wait_for 10 pane_has "alpha-pod"
 }
