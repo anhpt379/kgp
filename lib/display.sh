@@ -69,7 +69,7 @@ $(colorize CYAN "Actions:")
 $(colorize CYAN "In the log viewer:")
   $(colorize YELLOW "ESC")            Back
   $(colorize YELLOW "TAB")            Select line (repeat for more)
-  $(colorize YELLOW "CTRL-Y")         Copy selected log lines
+  $(colorize YELLOW "CTRL-Y")         Copy log line(s), the selection or the current line
   $(colorize YELLOW "CTRL-V")         Open in editor, on the current line
   $(colorize YELLOW "CTRL-G")         Jump to newest line
   $(colorize YELLOW "CTRL-/")         Toggle full-line preview pane
