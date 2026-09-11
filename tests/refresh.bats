@@ -209,7 +209,7 @@ MOCK_SCRIPT
 }
 
 header_has_warning() {
-    show_pod_header | grep -q "⚠"
+    show_pod_header | grep -q "⚠️"
 }
 
 @test "refresh failure: header warns about expired credentials" {
@@ -219,7 +219,7 @@ header_has_warning() {
     refresh_cache || true
 
     run show_pod_header
-    [[ "$output" == *"⚠"* ]]
+    [[ "$output" == *"⚠️"* ]]
     [[ "$output" == *"credentials expired"* ]]
     [[ "$output" == *"F5 to retry"* ]]
 }
@@ -241,7 +241,7 @@ header_has_warning() {
     refresh_cache || true
 
     run show_pod_header
-    [[ "$output" == *"⚠"* ]]
+    [[ "$output" == *"⚠️"* ]]
     [[ "$output" == *"refresh failing"* ]]
 }
 
@@ -249,7 +249,7 @@ header_has_warning() {
     refresh_cache
 
     run show_pod_header
-    [[ "$output" != *"⚠"* ]]
+    [[ "$output" != *"⚠️"* ]]
 }
 
 @test "refresh failure: the warning clears once the cluster answers again" {
@@ -291,8 +291,8 @@ header_has_warning() {
     POD="alpha-pod"
     RESOURCE="Deployments"
 
-    show_container_header | grep -q "⚠"
-    show_objects_header | grep -q "⚠"
+    show_container_header | grep -q "⚠️"
+    show_objects_header | grep -q "⚠️"
 }
 
 @test "refresh failure: the background loop raises the warning on its own" {

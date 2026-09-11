@@ -133,7 +133,7 @@ simply stops moving. When a refresh fails, the breadcrumb line gains a note
 naming the reason and how long the data has been stale:
 
 ```
-⎈ prod-cluster > production  ⚠ credentials expired, log in again — data 4m stale, F5 to retry
+⎈ prod-cluster > production  ⚠️ credentials expired, log in again — data 4m stale, F5 to retry
 ```
 
 The reason comes from what kubectl said: expired credentials, an unreachable

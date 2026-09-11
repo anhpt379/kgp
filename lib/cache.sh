@@ -90,7 +90,7 @@ refresh_error_note() {
     reason=$(head -1 "$marker")
     age=$(refresh_error_age "$marker")
 
-    printf '%s' "$(colorize ORANGE "⚠ ${reason} — data ${age:+$age }stale, F5 to retry")"
+    printf '%s' "$(colorize ORANGE "⚠️ ${reason} — data ${age:+$age }stale, F5 to retry")"
 }
 
 refresh_cache() {

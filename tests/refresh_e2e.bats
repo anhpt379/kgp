@@ -25,6 +25,9 @@ teardown() {
 }
 
 pane_free_of_warning() {
+    # Matched on the warning sign alone, without the emoji variation selector
+    # that follows it in the header: a terminal that drops the selector would
+    # otherwise make this negative check pass with the warning still on screen.
     ! pane_has "⚠"
 }
 
