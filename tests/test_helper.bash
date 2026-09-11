@@ -367,3 +367,29 @@ pane_text() {
 pane_has() {
     pane_text | grep -q -- "$1"
 }
+
+# fzf stand-in that records that it was reached and what list it was handed.
+# Lets a test run the real kgp entry point as its own process -- the only way to
+# see set -e abort the startup path -- without needing a terminal.
+mock_fzf_recorder() {
+    mkdir -p "${TEST_TMPDIR}/bin"
+    export FZF_LOG="${TEST_TMPDIR}/fzf.log"
+    rm -f "$FZF_LOG"
+
+    cat >"${TEST_TMPDIR}/bin/fzf" <<MOCK_SCRIPT
+#!/bin/bash
+cat >"${FZF_LOG}"
+MOCK_SCRIPT
+    chmod +x "${TEST_TMPDIR}/bin/fzf"
+    export PATH="${TEST_TMPDIR}/bin:$PATH"
+}
+
+# Run the real kgp entry point as a separate process, with fzf stubbed out.
+run_kgp() {
+    env PATH="$PATH" \
+        KGP_CACHE_DIR="${TEST_TMPDIR}/kgp-cache" \
+        KGP_LOG_DIR="${TEST_TMPDIR}/kgp-logs" \
+        KGP_CACHE_REFRESH=60 \
+        KGP_DEBUG=0 \
+        "${PROJECT_ROOT}/kgp" </dev/null
+}

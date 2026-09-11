@@ -125,8 +125,15 @@ initialize_cache
 # Initialize state
 save_state "pods"
 
-# Do initial cache refresh so data is ready before fzf starts
-refresh_cache
+# Do initial cache refresh so data is ready before fzf starts.
+#
+# A failure here is not fatal and must not go through set -e: refresh_cache has
+# already written what the user needs to see -- the reason in the list body and
+# the marker the header reads -- so aborting would trade that whole explanation
+# for a silent exit 1. This is the expired-token case, and it is the one where
+# the UI matters most: the view opens, says the credentials expired, and the
+# background loop retries every two seconds until a login lands.
+refresh_cache || debug "Initial refresh failed; opening on the error view"
 
 # ============================================================================
 # Main UI
