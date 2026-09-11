@@ -84,7 +84,7 @@ export -f clipboard_from_stdin copy_log_lines terminate_tree preview_log_line
 export -f log_preview_window toggle_log_preview read_log_line
 export -f show_pod_header show_container_header show_context_header show_resources_header show_objects_header
 export -f list_pods list_containers list_contexts list_resources list_objects
-export -f refresh_cache refresh_objects_cache display_data dispatch
+export -f refresh_cache refresh_objects_cache display_data dispatch pod_cache_is_cold
 export -f mark_refresh_error clear_refresh_error refresh_error_age refresh_error_note
 export -f exec_shell delete_object describe_object view_logs browse_logs create_debug_pod relaunch_pod
 export -f get_contexts switch_context get_current_namespace
@@ -125,7 +125,18 @@ initialize_cache
 # Initialize state
 save_state "pods"
 
-# Do initial cache refresh so data is ready before fzf starts.
+# Fetch before fzf starts only when there is nothing to start on.
+#
+# A cache left by an earlier session is what the first frame shows either way, so
+# fetching first would spend a whole cluster round trip -- longer than everything
+# else in this file put together, and longer still behind an exec credential
+# plugin -- to display a list already sitting on disk. The background loop picks
+# it up a second later and reloads fzf, which is the same path every later
+# refresh takes.
+#
+# A cold cache has nothing to show, so there the fetch stays in front of fzf: the
+# alternative is opening on the placeholder and repainting, which reads as a
+# loading screen.
 #
 # A failure here is not fatal and must not go through set -e: refresh_cache has
 # already written what the user needs to see -- the reason in the list body and
@@ -133,7 +144,11 @@ save_state "pods"
 # for a silent exit 1. This is the expired-token case, and it is the one where
 # the UI matters most: the view opens, says the credentials expired, and the
 # background loop retries every two seconds until a login lands.
-refresh_cache || debug "Initial refresh failed; opening on the error view"
+if pod_cache_is_cold; then
+    refresh_cache || debug "Initial refresh failed; opening on the error view"
+else
+    debug "Opening on the cached list; the background loop refreshes it"
+fi
 
 # ============================================================================
 # Main UI

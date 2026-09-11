@@ -15,6 +15,18 @@ initialize_cache() {
     fi
 }
 
+# Whether the pod cache holds nothing worth showing: no file at all, or only the
+# placeholder initialize_cache wrote. Two callers key off this -- the startup
+# path, to decide whether opening the view may wait on the cluster, and the
+# refresh error branch, to decide whether an error message may overwrite what is
+# already on disk.
+pod_cache_is_cold() {
+    local pods_file="${CACHE_DIR}/pods"
+
+    [[ -f "$pods_file" ]] || return 0
+    grep -q "Loading pod data" "$pods_file" 2>/dev/null
+}
+
 # ============================================================================
 # Refresh failure marker
 #
@@ -120,7 +132,7 @@ refresh_cache() {
 
             # Only overwrite cache with error if there's no valid cached data
             # This preserves the previous session's cache on transient connection failures
-            if [[ ! -f "${CACHE_DIR}/pods" ]] || grep -q "Loading pod data" "${CACHE_DIR}/pods" 2>/dev/null; then
+            if pod_cache_is_cold; then
                 echo "$(colorize RED "✗ Unable to connect to cluster: $CONTEXT")" > "${CACHE_DIR}/pods"
                 echo "$(colorize YELLOW "  Possible causes:")" >> "${CACHE_DIR}/pods"
                 echo "  • Cluster is unreachable or not running" >> "${CACHE_DIR}/pods"

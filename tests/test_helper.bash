@@ -374,10 +374,15 @@ pane_has() {
 mock_fzf_recorder() {
     mkdir -p "${TEST_TMPDIR}/bin"
     export FZF_LOG="${TEST_TMPDIR}/fzf.log"
-    rm -f "$FZF_LOG"
+    export KUBECTL_CALLS_AT_FZF="${TEST_TMPDIR}/kubectl-calls-at-fzf"
+    rm -f "$FZF_LOG" "$KUBECTL_CALLS_AT_FZF"
 
+    # Snapshot what the cluster had been asked for by the time fzf was reached.
+    # A refresh that happens before this point is one the user waits through; the
+    # background loop's own refreshes land after it.
     cat >"${TEST_TMPDIR}/bin/fzf" <<MOCK_SCRIPT
 #!/bin/bash
+cp "\${KUBECTL_CALLS:-/dev/null}" "${KUBECTL_CALLS_AT_FZF}" 2>/dev/null || :
 cat >"${FZF_LOG}"
 MOCK_SCRIPT
     chmod +x "${TEST_TMPDIR}/bin/fzf"
