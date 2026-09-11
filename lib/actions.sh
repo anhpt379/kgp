@@ -147,6 +147,12 @@ browse_logs() {
     # carries the full text of the current line, and CTRL-V opens the whole
     # stream when more than one line needs reading.
     #
+    # The pane is sized on every focus change instead of being fixed at a
+    # fraction of the terminal: log lines are mostly short, so a fixed pane
+    # spends most of its rows on blank space taken from the list. The height in
+    # --preview-window is only what the first frame shows before the focus event
+    # that follows the initial load replaces it.
+    #
     # Several options here exist to override a user's FZF_DEFAULT_OPTS rather
     # than for their own sake: tab:accept is a common default binding that would
     # close the viewer on the first TAB instead of selecting a line, --no-multi
@@ -178,13 +184,14 @@ browse_logs() {
         --height=100% \
         --prompt="Logs> " \
         --preview="preview_log_line '${spill}' {1}" \
-        --preview-window="down,35%,wrap,border-top" \
+        --preview-window="down,1,wrap,border-top" \
         --preview-label=" full line " \
         --header="${crumbs}
 ${keys}" \
         --bind="esc:abort" \
         --bind="tab:toggle+down" \
-        --bind="ctrl-/:toggle-preview" \
+        --bind="focus:transform:log_preview_window '${spill}' {1} \$FZF_COLUMNS" \
+        --bind="ctrl-/:execute-silent(toggle_log_preview '${spill}')+transform:log_preview_window '${spill}' {1} \$FZF_COLUMNS" \
         --bind="btab:toggle+up" \
         --bind="ctrl-c:abort" \
         --bind="ctrl-g:last" \
@@ -219,7 +226,9 @@ view_logs() {
         browse_logs "$pod" "$container" "$spill" "previous"
     fi
 
-    rm -f "$spill"
+    # The flag file outlives the first browse_logs on purpose, so a preview
+    # hidden in the live stream stays hidden in the fallback to previous logs.
+    rm -f "$spill" "${spill}.nopreview"
 }
 
 scale_object() {

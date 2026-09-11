@@ -100,6 +100,13 @@ goes back the same way it does everywhere else.
 | `ALT-G` | Jump to the oldest line |
 | `CTRL-/` | Toggle the full-line preview pane |
 
+Log lines are truncated rather than wrapped, so one screen row is always one
+line and the list stays scannable. The preview pane at the bottom carries the
+full text of the line under the cursor, and it sizes itself to that line: one
+row for a short line, up to ten for a long JSON payload, with a blank row above
+and two below for breathing room. Every row the preview does not need stays
+with the list.
+
 While the filter is empty the cursor stays pinned to the newest line, so a
 busy pod scrolls like `tail -f`. Type a filter to hold position.
 
